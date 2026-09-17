@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}{{ listing.title }} - CarExpert{% endblock %}
+{% block content %}
+<a class="back" href="/">&larr; retour aux affaires</a>
+
+<div class="big-score">
+  <div class="num {{ listing.verdict }}">{{ listing.score if listing.score is not none else '-' }}</div>
+  <div>
+    <h2 style="margin:0;font-size:20px;letter-spacing:-0.02em">{{ listing.title }}</h2>
+    <div class="meta" style="color:var(--muted);font-size:13px">
+      <span class="tag {{ listing.verdict }}">{{ listing.verdict_label }}</span>
+      {{ listing.source }} · {{ listing.city or '' }} {{ listing.country }} ·
+      <a href="{{ listing.url }}" target="_blank" rel="noopener">voir l'annonce d'origine</a>
+    </div>
+  </div>
+</div>
+{% if score and score.headline %}<p style="color:var(--muted);margin-top:0">{{ score.headline }}</p>{% endif %}
+
+<div class="detail">
+  <div>
+    {% if listing.photos %}
+    <div class="panel">
+      <h2>Photos ({{ listing.photos|length }})</h2>
+      <div class="gallery">
+        {% for p in listing.photos[:12] %}<img src="{{ p }}" alt="photo" loading="lazy">{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="panel">
+      <h2>Fiche</h2>
+      <div class="facts">
+        <div><span>Prix demande</span><b>{{ '{:,.0f}'.format(listing.price_eur or 0).replace(',', ' ') }} €</b></div>
+        <div><span>Estimation marche</span><b>{{ '{:,.0f}'.format(listing.fair_price_eur or 0).replace(',', ' ') }} €</b></div>
+        <div><span>Annee</span><b>{{ listing.year or '?' }}</b></div>
+        <div><span>Kilometrage</span><b>{{ '{:,}'.format(listing.km or 0).replace(',', ' ') }} km</b></div>
+        <div><span>Energie</span><b>{{ listing.fuel }}</b></div>
+        <div><span>Boite</span><b>{{ listing.gearbox }}</b></div>
+        <div><span>Vendeur</span><b>{{ listing.seller_type }}</b></div>
+        <div><span>Gain net estime</span>
+          <b class="gain {{ 'pos' if listing.net_gain_eur > 0 else 'neg' }}">
+            {{ '%+d'|format(listing.net_gain_eur|round|int) }} €</b></div>
+      </div>
+      {% if listing.options %}
+      <p style="color:var(--muted);font-size:13px;margin-bottom:0">
+        Options detectees : {{ listing.options|join(', ') }}
+      </p>
+      {% endif %}
+    </div>
+
+    {% if valuation %}
+    <div class="panel">
+      <h2>Comment le prix de marche est calcule</h2>
+      <div class="facts">
+        <div><span>Fourchette</span><b>{{ '{:,.0f}'.format(valuation.low_eur).replace(',', ' ') }} – {{ '{:,.0f}'.format(valuation.high_eur).replace(',', ' ') }} €</b></div>
+        <div><span>Comparables</span><b>{{ valuation.comps_count }}</b></div>
+        <div><span>Methode</span><b>{{ valuation.method }}</b></div>
+        <div><span>Confiance</span><b>{{ '{:.0%}'.format(valuation.confidence) }}</b></div>
+      </div>
+      <div class="bar"><i style="width: {{ (valuation.confidence * 100)|round|int }}%"></i></div>
+      {% if valuation.details and valuation.details.exemples %}
+      <ul class="clean" style="margin-top:14px">
+        {% for ex in valuation.details.exemples %}
+        <li><a href="{{ ex.url }}" target="_blank" rel="noopener">{{ ex.titre }}</a>
+          <span style="color:var(--muted)"> — {{ '{:,.0f}'.format(ex.prix or 0).replace(',', ' ') }} € ·
+          {{ '{:,}'.format(ex.km or 0).replace(',', ' ') }} km · {{ ex.annee }}</span></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if listing.description %}
+    <div class="panel">
+      <h2>Texte de l'annonce</h2>
+      <p style="white-space:pre-wrap;margin:0;font-size:14px">{{ listing.description }}</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div>
+    {% if report %}
+    <div class="panel">
+      <h2>Avis de l'expert</h2>
+      <p style="margin-top:0">{{ report.summary }}</p>
+      <div class="facts">
+        <div><span>Etat apparent</span><b>{{ report.condition_score }}/100</b></div>
+        <div><span>Coherence</span><b>{{ report.consistency_score }}/100</b></div>
+        <div><span>Remise en etat</span><b>{{ report.estimated_repairs_eur }} €</b></div>
+        <div><span>Confiance</span><b>{{ report.confidence }}/100</b></div>
+      </div>
+    </div>
+
+    {% if report.red_flags %}
+    <div class="panel">
+      <h2>Points d'alerte</h2>
+      {% for f in report.red_flags %}
+      <div class="flag {{ f.severity }}">
+        <b>{{ f.label }}</b>
+        <em>{{ f.evidence }}</em>
+        {% if f.estimated_cost_eur %}<div class="cost">~ {{ f.estimated_cost_eur }} € de remise en etat</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if report.photo_findings %}
+    <div class="panel">
+      <h2>Ce que montrent les photos</h2>
+      <ul class="clean warn">
+        {% for f in report.photo_findings %}
+        <li><b>Photo {{ f.photo_index }}</b> — {{ f.observation }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if report.strengths %}
+    <div class="panel">
+      <h2>Points rassurants</h2>
+      <ul class="clean good">{% for s in report.strengths %}<li>{{ s }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+
+    {% if report.known_issues_to_check %}
+    <div class="panel">
+      <h2>Faiblesses connues a verifier</h2>
+      <ul class="clean warn">{% for s in report.known_issues_to_check %}<li>{{ s }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+
+    {% if report.questions_to_seller %}
+    <div class="panel">
+      <h2>A demander au vendeur</h2>
+      <ul class="clean">{% for s in report.questions_to_seller %}<li>{{ s }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+
+    {% if report.negotiation_levers %}
+    <div class="panel">
+      <h2>Leviers de negociation</h2>
+      <ul class="clean good">{% for s in report.negotiation_levers %}<li>{{ s }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+
+    {% if score and score.factors %}
+    <div class="panel">
+      <h2>D'ou vient le score</h2>
+      {% for f in score.factors %}
+      <div class="factor">
+        <div class="pts {{ 'pos' if f.points > 0 else 'neg' }}">{{ '%+.1f'|format(f.points) }}</div>
+        <div>
+          <div class="label">{{ f.label }}</div>
+          <div class="detail">{{ f.detail }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <p style="color:var(--muted);font-size:12px">
+      Analyse produite par {{ model_used or 'regles internes' }} sur {{ photos_analyzed }} photo(s).
+    </p>
+    {% else %}
+    <div class="panel"><h2>Avis de l'expert</h2><p>Annonce pas encore expertisee.</p></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

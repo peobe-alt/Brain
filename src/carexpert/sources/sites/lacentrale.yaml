@@ -1,0 +1,16 @@
+# La Centrale - reference du marche francais, bon etalon de prix FR.
+name: lacentrale
+label: La Centrale
+countries: [FR]
+default_country: FR
+base_url: https://www.lacentrale.fr
+verified: false
+search_url: "https://www.lacentrale.fr/listing?makesModelsCommercialNames={make}%3A{model}&priceMax={price_max}&mileageMax={km_max}&yearMin={year_min}&page={page}"
+listing_link_pattern: "/auto-occasion-annonce-[0-9a-zA-Z]+\\.html"
+max_pages: 3
+request_delay: 4.0
+requires_js: true
+selectors: {}
+notes: >
+  Rendu largement cote client: le motif de lien peut ne rien remonter sans
+  navigateur. Prevoir un rendu headless (Playwright) ou un flux partenaire.

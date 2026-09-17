@@ -1,0 +1,45 @@
+[project]
+name = "carexpert"
+version = "0.1.0"
+description = "Scanner d'annonces auto europeennes avec analyse experte assistee par Claude"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "SQLAlchemy>=2.0",
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "typer>=0.12",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "jinja2>=3.1",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    "anthropic>=0.40",
+]
+
+[project.optional-dependencies]
+photos = ["pillow>=10.0"]
+dev = ["pytest>=8.0", "ruff>=0.4"]
+
+[project.scripts]
+carexpert = "carexpert.cli:app"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+carexpert = ["sources/sites/*.yaml", "expert/knowledge/*", "web/templates/*", "web/static/*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

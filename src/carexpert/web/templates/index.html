@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block header %}
+<div class="stats">
+  <div class="stat"><b>{{ stats.total }}</b><span>annonces suivies</span></div>
+  <div class="stat"><b>{{ stats.analyzed }}</b><span>analysees</span></div>
+  <div class="stat"><b>{{ stats.great }}</b><span>affaires (75+)</span></div>
+  <div class="stat"><b>{{ stats.watchlists }}</b><span>veilles actives</span></div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form class="filters" method="get">
+  <label for="min_score">Score minimum</label>
+  <input type="number" id="min_score" name="min_score" min="0" max="100" step="5" value="{{ filters.min_score }}">
+  <label for="make">Marque</label>
+  <select id="make" name="make">
+    <option value="">toutes</option>
+    {% for m in makes %}<option value="{{ m }}" {% if filters.make == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+  </select>
+  <label for="verdict">Avis</label>
+  <select id="verdict" name="verdict">
+    <option value="">tous</option>
+    <option value="grab" {% if filters.verdict == 'grab' %}selected{% endif %}>A saisir</option>
+    <option value="check" {% if filters.verdict == 'check' %}selected{% endif %}>A verifier</option>
+    <option value="avoid" {% if filters.verdict == 'avoid' %}selected{% endif %}>A fuir</option>
+  </select>
+  <button type="submit">Filtrer</button>
+</form>
+
+{% if deals %}
+<div class="grid">
+  {% for d in deals %}
+  <a class="card" href="/listing/{{ d.id }}">
+    <div class="thumb" {% if d.photo %}style="background-image:url('{{ d.photo }}')"{% endif %}>
+      {% if not d.photo %}<div class="empty">{{ d.photo_count }} photo(s)</div>{% endif %}
+      <div class="score {{ d.verdict }}">{{ d.score }}</div>
+    </div>
+    <div class="body">
+      <h3>{{ d.title }}</h3>
+      <div class="meta">
+        {{ d.year or '?' }} · {{ '{:,}'.format(d.km or 0).replace(',', ' ') }} km ·
+        {{ d.fuel }} · {{ d.city or d.country }}
+      </div>
+      <div class="prices">
+        <span class="ask">{{ '{:,.0f}'.format(d.price_eur or 0).replace(',', ' ') }} €</span>
+        {% if d.fair_price_eur %}
+        <span class="fair">marche {{ '{:,.0f}'.format(d.fair_price_eur).replace(',', ' ') }} €</span>
+        {% endif %}
+      </div>
+      <div>
+        <span class="tag {{ d.verdict }}">{{ d.verdict_label }}</span>
+        {% if d.net_gain_eur %}
+        <span class="gain {{ 'pos' if d.net_gain_eur > 0 else 'neg' }}">
+          {{ '%+d'|format(d.net_gain_eur|round|int) }} €
+        </span>
+        {% endif %}
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <p>Aucune annonce analysee pour ces criteres.</p>
+  <p>Lancer une demonstration hors ligne : <code>carexpert demo</code></p>
+  <p>Ou un vrai scan : <code>carexpert scan --source autoscout24 --url "&lt;recherche collee&gt;"</code></p>
+</div>
+{% endif %}
+{% endblock %}

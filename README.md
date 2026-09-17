@@ -1,0 +1,219 @@
+# CarExpert
+
+**Un expert automobile qui lit les annonces a votre place.**
+
+Le probleme n'est pas de trouver des annonces : il y en a des milliers. Le
+probleme est que les filtres d'un site savent trier par prix, pas dire si un
+prix est bon. Une Golf a 13 500 EUR est une affaire ou une arnaque selon
+l'annee, le kilometrage, la boite, l'entretien, et selon ce que le vendeur a
+ecrit en petit au milieu de sa description.
+
+CarExpert scanne les annonces, estime ce que chaque voiture vaut reellement
+d'apres le marche, lit le texte et regarde les photos comme le ferait un
+expert, et ne vous remonte que ce qui merite un deplacement.
+
+---
+
+## Le point essentiel, en chiffres
+
+Mesure sur un marche de test dont la verite est connue :
+
+| | Ecart au prix de marche | Score CarExpert |
+|---|---|---|
+| Vraies affaires | -21 % | **84 / 100** |
+| Annonces au prix | -2 % | 51 / 100 |
+| **Pieges** (moteur fatigue, compteur douteux, vendu en l'etat) | **-37 %** | **30 / 100** |
+
+Les pieges sont les annonces **les moins cheres du marche**. Un tri par prix
+les met en premiere page. Apres lecture du texte et de l'etat, ils tombent a
+30 et sortent du top 25, qui ne contient plus que de vraies affaires.
+
+C'est exactement ce que le produit doit faire, et c'est verifie par un test.
+
+---
+
+## Essayer en une commande
+
+Aucune cle API, aucun reseau requis : un marche synthetique est genere
+localement pour voir toute la chaine fonctionner.
+
+```bash
+pip install -e .
+carexpert demo
+```
+
+```
+250 annonces vues, 250 nouvelles, 0 ignorees
+0 collectees, 250 estimees, 0 expertisees en profondeur
+
+  id  score  avis       vehicule                                prix    marche   ecart
+  27     92  A SAISIR   Volkswagen Golf Confortline 2021       9 140   12 901  +3 761
+  51     90  A SAISIR   Renault Captur Zen hybride 2020        7 600    9 137  +1 537
+  49     89  A SAISIR   Mercedes Classe C Break diesel 2021   13 250   17 704  +4 454
+```
+
+Puis le detail d'une annonce, avec le raisonnement complet :
+
+```bash
+carexpert show 27
+carexpert serve        # tableau de bord sur http://127.0.0.1:8000
+```
+
+---
+
+## Sur de vraies annonces
+
+```bash
+cp .env.example .env          # y mettre ANTHROPIC_API_KEY pour l'expertise photo
+```
+
+La methode la plus fiable : construire la recherche dans l'interface du site,
+avec ses filtres, copier l'URL, et la donner a CarExpert.
+
+```bash
+carexpert scan --source autoscout24 --url "<URL de recherche collee>" --deep 5
+```
+
+Ou par criteres :
+
+```bash
+carexpert scan --source autoscout24 --make Peugeot --model 308 \
+               --price-max 15000 --km-max 120000 --year-min 2018 --deep 5
+```
+
+Mettre une recherche sous surveillance :
+
+```bash
+carexpert watch add golf-gtd --make Volkswagen --model Golf \
+                   --price-max 18000 --min-score 78 --channel telegram
+carexpert watch run
+```
+
+Expertiser une annonce precise, tout de suite :
+
+```bash
+carexpert analyse-url "https://www.autoscout24.fr/offres/..."
+```
+
+---
+
+## Ce que l'outil regarde vraiment
+
+**Le prix.** Des comparables sont cherches en base par paliers (meme modele,
+meme energie, meme boite, annee et kilometrage proches, meme pays), puis
+chacun est **ramene aux conditions du vehicule analyse** : age, kilometrage,
+boite, options, type de vendeur, pays. Le prix juste est la mediane robuste
+des prix ainsi ajustes, assortie d'une confiance qui pondere son poids dans
+la note.
+
+**Le texte.** Une couche de signaux typés lit ce que le vendeur dit, et ce
+qu'il evite de dire : `vendu en l'etat`, `compteur non garanti`,
+`distribution a faire`, mais aussi `carnet d'entretien complet`,
+`premiere main`. Les negations sont gerees : `jamais accidente` n'est pas
+`accidente` (ce detail, seul, evite des milliers de faux positifs).
+
+**Les photos.** Claude examine les photos et le dossier complet : jeux de
+carrosserie, teintes de peinture differentes, usure de l'habitacle par
+rapport au kilometrage annonce, pneus depareilles, voyants au tableau de
+bord, angles systematiquement evites.
+
+**Le modele precis.** Une base de faiblesses connues par motorisation oriente
+l'analyse : courroie humide PureTech, chaine N47, DSG 7 a sec, consommation
+d'huile du 1.2 TCe, sante de batterie sur electrique. Ce sont des points a
+verifier, presentes comme tels.
+
+**La coherence de l'ensemble.** Une decote de 30 % sans raison ecrite n'est
+pas une aubaine : c'est une question sans reponse, et elle est traitee comme
+un signal d'alerte.
+
+Chaque point du score est justifie, ligne par ligne :
+
+```
+  +31.6  Position prix: 21% sous le marche (16 comparables, confiance 85%)
+   +8.0  Avis de l'expert: grab
+   +7.5  Etat apparent: note d'etat 90/100
+   -11.1  Remise en etat: 1 300 EUR a prevoir, soit 12% du prix demande
+```
+
+---
+
+## Deux passes, pour que ca reste payable
+
+Envoyer mille annonces a un modele multimodal coute cher. La chaine est donc
+coupee en deux : **tout** est collecte, normalise, estime et note par les
+regles internes (local, instantane, gratuit), puis **seules les meilleures
+candidates** partent chez Claude avec leurs photos pour une expertise reelle,
+avant d'etre renotees.
+
+`--deep 10` sur un scan de 800 annonces, c'est dix appels modele.
+
+Sans cle API, l'outil fonctionne quand meme : l'expertise se fait alors sur
+les regles seules, et le dit.
+
+---
+
+## Sources
+
+| Source | Pays | Etat |
+|---|---|---|
+| `demo` | - | marche synthetique, hors ligne, pour tests et demonstration |
+| `autoscout24` | DE FR IT ES NL BE AT | gabarit a valider, extraction `schema.org` |
+| `mobile_de` | DE AT | gabarit a valider |
+| `lacentrale` | FR | rendu JavaScript, passer par `--url` ou un flux officiel |
+| `leboncoin` | FR | protection forte, usage manuel recommande |
+| `coches_net` | ES | rendu JavaScript |
+
+Ajouter un site = deposer un fichier YAML dans `src/carexpert/sources/sites/`.
+Aucun code Python.
+
+L'extraction ne repose pas sur des selecteurs CSS fragiles mais sur le
+balisage `schema.org/Car` que les sites publient pour le referencement.
+
+**A lire avant toute collecte reelle : [`docs/02-sources-et-legal.md`](docs/02-sources-et-legal.md).**
+Le `robots.txt` est respecte par defaut, une requete toutes les 2,5 secondes
+par domaine, rien en parallele, et les protections anti-bot ne se contournent
+pas.
+
+---
+
+## Documentation
+
+- [Architecture](docs/01-architecture.md) : le flux, les couches, les choix techniques
+- [Sources et cadre legal](docs/02-sources-et-legal.md) : politique de collecte, CGU, RGPD
+- [Le scoring](docs/03-scoring.md) : estimation, ponderation, limites
+- [Suite](docs/04-roadmap.md) : prochaines etapes et modele economique
+
+---
+
+## Developpement
+
+```bash
+pip install -e ".[dev,photos]"
+pytest                      # 58 tests
+carexpert sources           # sources disponibles
+```
+
+Structure :
+
+```
+src/carexpert/
+  sources/     collecte (adaptateurs YAML, extraction schema.org, fetcher poli)
+  normalize/   vocabulaire commun + lecture des signaux du texte
+  valuation/   comparables, courbes de decote, estimation
+  expert/      Claude (photos + texte) et base de faiblesses connues
+  scoring/     score explique
+  alerts/      veilles et notifications
+  api/ web/    tableau de bord et API JSON
+```
+
+---
+
+## Ce que l'outil ne fait pas
+
+- Il ne remplace ni un essai, ni un controle technique, ni un passage sur un
+  pont. Une expertise sur photos reste une expertise sur photos.
+- Il ne collecte pas les coordonnees des vendeurs. C'est volontaire.
+- Il n'a pas acces a l'historique VIN : c'est la donnee qui lui manque le
+  plus, et elle s'achete.
+- Les gabarits d'URL de recherche des sites reels ne sont pas encore valides
+  en conditions reelles. Le chemin `--url` fonctionne, lui, immediatement.

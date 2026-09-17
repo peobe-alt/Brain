@@ -1,0 +1,16 @@
+# coches.net - marche espagnol, utile pour les cabriolets et les vehicules
+# sans corrosion hivernale.
+name: coches_net
+label: coches.net
+countries: [ES]
+default_country: ES
+base_url: https://www.coches.net
+verified: false
+search_url: "https://www.coches.net/segunda-mano/?MakeIds[0]={make}&ModelIds[0]={model}&MaxPrice={price_max}&MaxKm={km_max}&MinYear={year_min}&pg={page}"
+listing_link_pattern: "/[a-z0-9-]+-\\d+-\\w+\\.aspx"
+max_pages: 3
+request_delay: 4.0
+requires_js: true
+selectors: {}
+notes: >
+  Verifier le format des identifiants marque/modele avant usage.

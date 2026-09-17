@@ -1,0 +1,28 @@
+# AutoScout24 - le plus gros inventaire pan-europeen, donc la source n°1
+# pour comparer un meme modele entre pays.
+name: autoscout24
+label: AutoScout24
+countries: [DE, FR, IT, ES, NL, BE, AT, LU, PL]
+default_country: FR
+base_url: https://www.autoscout24.fr
+
+# Les gabarits d'URL ci-dessous suivent la structure publique du site mais
+# DOIVENT etre revalides avant toute collecte reelle (voir docs/02-sources-et-legal.md).
+# La voie fiable au quotidien: construire la recherche dans l'interface du site
+# puis la passer telle quelle a `carexpert scan --url "<url collee>"`.
+verified: false
+search_url: "https://www.autoscout24.fr/lst/{make}/{model}?sort=standard&desc=0&pricefrom={price_min}&priceto={price_max}&kmto={km_max}&fregfrom={year_min}&page={page}"
+listing_link_pattern: "/offres/[^?#]+"
+
+max_pages: 3
+request_delay: 3.0
+requires_js: false
+
+# Filets de securite si le schema.org venait a manquer. Laisses vides
+# volontairement: un selecteur invente vaut moins que pas de selecteur.
+selectors: {}
+
+notes: >
+  Publie du JSON-LD schema.org/Car sur les pages d'annonce, ce qui rend
+  l'extraction stable. Verifier les conditions d'utilisation et privilegier
+  un acces API/partenaire pour tout usage au dela de la veille personnelle.

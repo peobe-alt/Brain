@@ -1,0 +1,18 @@
+# mobile.de - le marche allemand, souvent 10 a 20% moins cher qu'en France
+# sur les premium diesel. Interessant pour l'arbitrage import.
+name: mobile_de
+label: mobile.de
+countries: [DE, AT]
+default_country: DE
+base_url: https://suchen.mobile.de
+verified: false
+search_url: "https://suchen.mobile.de/fahrzeuge/search.html?isSearchRequest=true&makeModelVariant1.makeId={make}&makeModelVariant1.modelId={model}&maxPrice={price_max}&maxMileage={km_max}&minFirstRegistrationDate={year_min}&pageNumber={page}"
+listing_link_pattern: "/fahrzeuge/details\\.html\\?id=\\d+"
+max_pages: 3
+request_delay: 4.0
+requires_js: false
+selectors: {}
+notes: >
+  Attention: les identifiants de marque/modele sont numeriques chez mobile.de,
+  le gabarit ci-dessus attend donc des ids, pas des noms. Passer par
+  `--url` avec une recherche construite sur le site est plus simple.

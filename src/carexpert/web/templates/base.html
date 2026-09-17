@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}CarExpert{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>">
+</head>
+<body>
+  <header class="site">
+    <div class="wrap">
+      <div class="brand">
+        <h1><a href="/">CarExpert</a></h1>
+        <span>l'expert automobile qui lit les annonces a votre place</span>
+      </div>
+      {% block header %}{% endblock %}
+    </div>
+  </header>
+  <main class="wrap">
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    Estimations calculees sur annonces comparables. Une expertise sur photos ne
+    remplace pas un essai ni un controle technique.
+  </footer>
+</body>
+</html>

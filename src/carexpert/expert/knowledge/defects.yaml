@@ -1,0 +1,167 @@
+# Base de connaissances: faiblesses connues par motorisation / modele.
+#
+# Sert a deux choses: orienter le regard de l'expert (Claude) vers ce qui
+# compte sur CE vehicule, et chiffrer le risque quand l'annonce reste muette.
+#
+# Chaque entree est une tendance documentee, pas une fatalite: un exemplaire
+# suivi peut etre sain. Le champ `verifier` est ce qu'il faut demander ou
+# controler avant d'acheter.
+#
+# severite: 1 (agacant) a 5 (redhibitoire si non traite)
+
+- code: psa_puretech_courroie_humide
+  makes: [Peugeot, Citroen, DS, Opel]
+  keywords: ["puretech", "1.2 puretech", "eb2dts", "130 puretech", "110 puretech"]
+  years: [2013, 2022]
+  titre: "PureTech 1.2 - courroie de distribution immergee"
+  symptomes: "Courroie qui se delite dans l'huile, depots obstruant la crepine, casse moteur possible."
+  verifier: "Courroie remplacee (facture) ou moteur post-2022, niveau et proprete de l'huile, bruit a froid."
+  cout_eur: 1500
+  severite: 5
+
+- code: bmw_n47_chaine
+  makes: [BMW]
+  keywords: ["n47", "116d", "118d", "120d", "316d", "318d", "320d", "520d", "x1 18d", "x3 18d"]
+  years: [2007, 2011]
+  titre: "Diesel N47 - chaine de distribution cote volant moteur"
+  symptomes: "Cliquetis a froid, allongement de chaine, depose moteur necessaire pour la reparation."
+  verifier: "Bruit de chaine au demarrage a froid, facture de remplacement, historique constructeur."
+  cout_eur: 2500
+  severite: 5
+
+- code: vw_dsg_dq200
+  makes: [Volkswagen, Audi, Seat, Skoda, Cupra]
+  keywords: ["dsg 7", "dq200", "dsg7", "s tronic 7"]
+  years: [2008, 2016]
+  titre: "DSG 7 a sec (DQ200) - mecatronique"
+  symptomes: "A-coups a basse vitesse, refus d'engager un rapport, voyant boite."
+  verifier: "Passage des rapports a froid en manoeuvre, vidange boite effectuee, mecatronique remplacee."
+  cout_eur: 2000
+  severite: 4
+
+- code: renault_tce_12_huile
+  makes: [Renault, Nissan, Dacia]
+  keywords: ["1.2 tce", "tce 115", "tce 120", "h5ft"]
+  years: [2012, 2016]
+  titre: "1.2 TCe - consommation d'huile et turbo"
+  symptomes: "Consommation d'huile anormale, encrassement, casse turbo puis moteur."
+  verifier: "Niveau d'huile, fumee bleue, factures de vidange rapprochees, remplacement moteur eventuel."
+  cout_eur: 3500
+  severite: 5
+
+- code: ford_ecoboost_courroie
+  makes: [Ford]
+  keywords: ["1.0 ecoboost", "ecoboost 125", "ecoboost 100"]
+  years: [2012, 2019]
+  titre: "1.0 EcoBoost - courroie humide et circuit de refroidissement"
+  symptomes: "Courroie immergee qui se degrade, durite de degazage fragile, surchauffe possible."
+  verifier: "Courroie et pompe a eau remplacees, traces de surchauffe, niveau de liquide."
+  cout_eur: 1400
+  severite: 4
+
+- code: audi_ea888_huile
+  makes: [Audi, Volkswagen, Seat, Skoda]
+  keywords: ["2.0 tfsi", "ea888", "tfsi 211", "tfsi 200"]
+  years: [2008, 2012]
+  titre: "2.0 TFSI (EA888 gen2) - segmentation et tendeur de chaine"
+  symptomes: "Forte consommation d'huile, tendeur de chaine defaillant sur les premieres series."
+  verifier: "Consommation d'huile au litre/1000 km, tendeur mis a jour, compressions."
+  cout_eur: 3000
+  severite: 4
+
+- code: mercedes_om651_injecteurs
+  makes: [Mercedes-Benz]
+  keywords: ["om651", "220 cdi", "200 cdi", "220 d", "250 cdi"]
+  years: [2009, 2014]
+  titre: "OM651 - injecteurs et chaine sur les premieres series"
+  symptomes: "Demarrage difficile, bruit de chaine, injecteurs grippes."
+  verifier: "Factures d'injecteurs, bruit a froid, retours de fuite."
+  cout_eur: 1800
+  severite: 3
+
+- code: cvt_xtronic
+  makes: [Nissan, Renault, Mitsubishi]
+  keywords: ["xtronic", "cvt", "x-tronic"]
+  years: [2010, 2020]
+  titre: "Boite CVT X-Tronic - usure prematuree"
+  symptomes: "Patinage, montee en regime sans acceleration, surchauffe en cote."
+  verifier: "Vidange de boite respectee, comportement a chaud, historique."
+  cout_eur: 3500
+  severite: 4
+
+- code: fap_trajets_courts
+  makes: []
+  fuels: [diesel]
+  keywords: []
+  years: [2009, 2030]
+  # Un diesel qui fait de la route ne s'encrasse pas: le sujet ne concerne
+  # que les faibles kilometrages annuels.
+  conditions:
+    km_per_year_max: 12000
+  titre: "Diesel a usage urbain - FAP et vanne EGR encrasses"
+  symptomes: "Regenerations incessantes, voyant moteur, perte de puissance, dilution d'huile."
+  verifier: "Kilometrage annuel coherent avec un usage route, historique de regeneration, etat du FAP."
+  cout_eur: 1300
+  severite: 3
+
+- code: adblue_scr
+  makes: []
+  fuels: [diesel]
+  keywords: ["adblue", "scr", "euro 6", "bluehdi", "blue dci", "bluetec"]
+  years: [2015, 2030]
+  titre: "Systeme AdBlue / SCR - pannes de pompe et de capteur"
+  symptomes: "Refus de demarrage apres compte a rebours, voyant AdBlue permanent."
+  verifier: "Absence de message AdBlue, historique de remplacement de la pompe."
+  cout_eur: 1200
+  severite: 3
+
+- code: zoe_batterie_location
+  makes: [Renault]
+  keywords: ["zoe"]
+  years: [2012, 2022]
+  titre: "Renault Zoe - batterie parfois en location"
+  symptomes: "Loyer mensuel de batterie qui s'ajoute au prix d'achat, revente plus difficile."
+  verifier: "Batterie achetee ou louee, montant du loyer, transfert du contrat."
+  cout_eur: 0
+  severite: 3
+
+- code: ev_sante_batterie
+  makes: []
+  fuels: [electric, phev]
+  keywords: []
+  years: [2011, 2030]
+  titre: "Vehicule electrique - etat de sante de la batterie"
+  symptomes: "Autonomie reelle inferieure a l'annonce, degradation acceleree sur charge rapide frequente."
+  verifier: "Certificat SoH (state of health), historique de charge rapide, garantie batterie restante."
+  cout_eur: 0
+  severite: 4
+
+- code: dpf_mazda_skyactiv
+  makes: [Mazda]
+  keywords: ["skyactiv-d", "2.2 skyactiv", "150 skyactiv"]
+  years: [2012, 2019]
+  titre: "Skyactiv-D 2.2 - dilution d'huile et FAP"
+  symptomes: "Niveau d'huile qui monte, encrassement sur trajets courts."
+  verifier: "Niveau d'huile, usage majoritairement autoroute, mises a jour constructeur."
+  cout_eur: 2000
+  severite: 4
+
+- code: tesla_m3_suspension
+  makes: [Tesla]
+  keywords: ["model 3", "model y"]
+  years: [2017, 2021]
+  titre: "Model 3 premieres series - trains roulants et finitions"
+  symptomes: "Bras de suspension, bruits de caisse, ajustements de carrosserie."
+  verifier: "Bruits sur route degradee, historique d'interventions, version du MCU."
+  cout_eur: 900
+  severite: 2
+
+- code: bva_zf8_vidange
+  makes: [BMW, Audi, Jaguar, Land Rover, Volkswagen]
+  keywords: ["zf8", "steptronic", "tiptronic 8", "bva8"]
+  years: [2010, 2030]
+  titre: "Boite ZF 8 rapports - vidange trop souvent oubliee"
+  symptomes: "A-coups, passages brusques apres 100 000 km sans vidange."
+  verifier: "Vidange de boite faite vers 80-100 000 km, facture a l'appui."
+  cout_eur: 600
+  severite: 2

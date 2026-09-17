@@ -1,0 +1,18 @@
+# leboncoin - la ou se trouvent les vraies affaires entre particuliers en France,
+# et aussi la source la mieux protegee. A traiter avec le plus de prudence.
+name: leboncoin
+label: leboncoin
+countries: [FR]
+default_country: FR
+base_url: https://www.leboncoin.fr
+verified: false
+search_url: "https://www.leboncoin.fr/recherche?category=2&text={keywords}&price=min-{price_max}&mileage=min-{km_max}&regdate={year_min}-max&page={page}"
+listing_link_pattern: "/ad/voitures/\\d+"
+max_pages: 2
+request_delay: 6.0
+requires_js: true
+selectors: {}
+notes: >
+  Protection anti-bot forte et CGU restrictives. Ne pas forcer. Utiliser
+  les alertes natives du site et l'analyse manuelle d'annonces (commande
+  `carexpert analyse-url`) plutot qu'une collecte automatisee.
