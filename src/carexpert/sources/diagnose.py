@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 import time
 from pathlib import Path
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlparse
 
@@ -298,54 +298,76 @@ class DiagnosticReport:
 def suggest_link_pattern(html: str, base_url: str) -> tuple[str | None, int]:
     """Infer the shape of advert URLs from the links a page actually contains.
 
-    Groups every internal link by its path shape (digits and slugs masked),
-    then returns a regex for the most repeated shape that carries an
-    identifier. Advert links are, by construction, the ones repeated dozens
-    of times on a results page.
+    Advert links are, by construction, the ones repeated dozens of times on a
+    results page. The trick is grouping them: two adverts of different trims
+    live at `/detail/renault-twingo/twingo-2-rip-curl/...` and
+    `/detail/renault-twingo/twingo-3-zen/...`, so masking digits alone puts
+    them in separate groups and splits the count between them.
+
+    So links are grouped by their route skeleton - first segment and depth -
+    and only then are the segments that differ *within* a group widened.
+    Measured on leparking: grouping on the full slug proposed a pattern that
+    matched Twingo Rip Curl adverts and nothing else.
     """
     from .structured import _soup
 
     host = urlparse(base_url).netloc
-    shapes: Counter[str] = Counter()
-    examples: dict[str, str] = {}
+    groups: dict[tuple[str, int], list[list[str]]] = defaultdict(list)
 
     for anchor in _soup(html).find_all("a", href=True):
         href = urljoin(base_url, anchor["href"].split("#")[0].split("?")[0])
         parsed = urlparse(href)
         if parsed.netloc and parsed.netloc != host:
             continue
-        path = parsed.path.rstrip("/")
-        if not path or path.count("/") < 1:
+        segments = [part for part in parsed.path.split("/") if part]
+        if not segments:
             continue
-        shape = _shape(path)
-        if not re.search(r"\\d\{|\\d\+", shape):
-            continue                      # no identifier: not an advert link
-        shapes[shape] += 1
-        examples.setdefault(shape, path)
+        skeleton = (segments[0], len(segments))
+        if segments not in groups[skeleton]:
+            groups[skeleton].append(segments)
 
-    if not shapes:
-        return None, 0
-    shape, count = shapes.most_common(1)[0]
-    if count < 3:
-        return None, count
-    return shape, count
+    # Ce que l'URL de recherche contient deja ne fait pas partie de la route:
+    # sur une page Twingo, toutes les annonces sont des Twingo, et un motif
+    # qui fige `renault-twingo` ne servira qu'a cette recherche-la.
+    searched = {part for part in urlparse(base_url).path.split("/") if part}
+    searched |= {part.removesuffix(".html") for part in searched}
 
-
-def _shape(path: str) -> str:
-    """`/annonce/peugeot-308-123456` -> `/annonce/[^/]+-\\d{4,}`."""
-    parts = []
-    for segment in path.split("/"):
-        if not segment:
+    for segments_list in sorted(groups.values(), key=len, reverse=True):
+        if len(segments_list) < 3:
             continue
-        if re.fullmatch(r"\d+", segment):
+        pattern = _pattern_from_group(segments_list, searched)
+        if pattern:
+            return pattern, len(segments_list)
+    return None, 0
+
+
+def _pattern_from_group(group: list[list[str]], searched: set[str]) -> str | None:
+    """One regex covering a group of same-shaped paths.
+
+    A position every path agrees on stays literal - that is the site's own
+    route, and keeping it is what stops the pattern matching category pages.
+    A position they disagree on is the variable part: the make, the trim, the
+    advert's own slug.
+    """
+    parts: list[str] = []
+    has_identifier = False
+    for index in range(len(group[0])):
+        values = {segments[index] for segments in group}
+        if len(values) == 1 and not (values & searched):
+            parts.append(re.escape(next(iter(values))))
+        elif len(values) == 1:
+            parts.append(r"[^/]+")
+        elif all(re.fullmatch(r"\d+", value) for value in values):
             parts.append(r"\d+")
-        elif re.fullmatch(r"[0-9a-f]{8}-[0-9a-f-]{20,}", segment):
-            parts.append(r"[0-9a-f-]{30,}")
-        elif re.search(r"\d{4,}", segment):
-            parts.append(re.sub(r"[\w-]*\d{4,}[\w-]*", r"[^/]+-?\\d{4,}", segment, count=1))
+            has_identifier = True
+        elif all(re.search(r"\d{4,}", value) for value in values):
+            parts.append(r"[^/]*\d{4,}[^/]*")
+            has_identifier = True
         else:
-            parts.append(re.escape(segment))
-    return "/" + "/".join(parts)
+            parts.append(r"[^/]+")
+    # Sans identifiant, le motif attrape aussi bien les pages de categorie:
+    # c'est exactement le defaut qu'on vient de corriger.
+    return "/" + "/".join(parts) if has_identifier else None
 
 
 def diagnose_search(

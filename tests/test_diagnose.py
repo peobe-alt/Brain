@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from carexpert.sources.diagnose import diagnose_search, suggest_link_pattern
 from carexpert.sources.fetcher import FetchResult
 
@@ -297,3 +299,74 @@ def test_the_declared_search_url_is_read_from_the_site_markup():
     # Pas de SearchAction, pas d'invention.
     assert declared_search_url("<html><body>rien</body></html>") is None
     assert declared_search_url(SEARCH_OK) is None
+
+
+LEPARKING_RESULTS = """<html><body>
+<a href="/voiture-occasion-detail/renault-twingo/twingo-2-rip-curl/twingo-ii-1-2-16v-8451234.html">1</a>
+<a href="/voiture-occasion-detail/renault-twingo/twingo-3-zen/twingo-iii-0-9-tce-9912345.html">2</a>
+<a href="/voiture-occasion-detail/renault-twingo/twingo-2-dynamique/twingo-1-5-dci-7723456.html">3</a>
+<a href="/voiture-occasion-detail/renault-twingo/twingo-1-authentique/twingo-1-2-6634567.html">4</a>
+<a href="/voiture-occasion/renault.html">Renault</a>
+<a href="/voiture-occasion/collection.html">Collection</a>
+<a href="/voiture-occasion/Coupe-occasion.html">Coupe</a>
+<a href="/contact.html">Contact</a>
+</body></html>"""
+
+LEPARKING_SEARCH = "https://www.leparking.fr/voiture-occasion/renault-twingo.html"
+
+
+def test_the_inferred_pattern_is_not_tied_to_one_trim():
+    """Mesure sur leparking: le motif proposé figeait `twingo-2-rip-curl`.
+
+    Deux annonces de finitions differentes ont des chemins differents, donc
+    masquer les chiffres seuls les met dans deux groupes et partage le
+    compte entre eux. Le gagnant etait la finition la plus representee, et
+    le motif propose ne matchait qu'elle.
+    """
+    pattern, count = suggest_link_pattern(LEPARKING_RESULTS, LEPARKING_SEARCH)
+
+    assert pattern and count == 4
+    assert "rip-curl" not in pattern
+    assert re.search(pattern, "/voiture-occasion-detail/renault-twingo/"
+                              "twingo-3-zen/twingo-iii-0-9-tce-9912345.html")
+
+
+def test_the_inferred_pattern_is_not_tied_to_the_model_searched():
+    """`renault-twingo` est litteral sur cette page, et pourtant variable.
+
+    Toutes les annonces d'une recherche Twingo sont des Twingo: le segment
+    ne varie pas, mais il vient de la recherche, pas de la route du site. Un
+    motif qui le fige ne sert qu'a cette recherche-la.
+    """
+    pattern, _ = suggest_link_pattern(LEPARKING_RESULTS, LEPARKING_SEARCH)
+
+    assert "twingo" not in pattern
+    assert re.search(pattern, "/voiture-occasion-detail/peugeot-208/"
+                              "208-gt-line/208-puretech-130-3312345.html")
+
+
+def test_the_inferred_pattern_still_refuses_the_category_pages():
+    """Ce qui a coute deux tours: `/voiture-occasion/collection.html`."""
+    pattern, _ = suggest_link_pattern(LEPARKING_RESULTS, LEPARKING_SEARCH)
+
+    for category in ("/voiture-occasion/collection.html",
+                     "/voiture-occasion/Coupe-occasion.html",
+                     "/voiture-occasion/renault.html",
+                     "/contact.html"):
+        assert not re.search(pattern, category), category
+
+
+def test_the_shipped_leparking_pattern_matches_adverts_only():
+    """Le motif du depot, pas celui deduit: c'est lui qui tourne en vrai."""
+    from carexpert.sources.configured import load_site_configs
+    from carexpert.sources.structured import extract_listing_links
+
+    pattern = load_site_configs()["leparking"]["listing_link_pattern"]
+    links = extract_listing_links(LEPARKING_RESULTS, LEPARKING_SEARCH, pattern)
+
+    assert len(links) == 4
+    assert all("voiture-occasion-detail" in link for link in links)
+    # Invariant 9: un identifiant par vehicule, pas un identifiant de modele.
+    from carexpert.sources.structured import _listing_id
+
+    assert len({_listing_id(link) for link in links}) == 4

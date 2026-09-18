@@ -23,7 +23,12 @@ verified: false
 # Les parametres de filtre ne sont pas documentes la: une recherche filtree se
 # construit dans l'interface du site et se colle avec --url.
 search_url: "https://www.leparking.fr/voiture-occasion/{make}-{model}.html?page={page}"
-listing_link_pattern: "/voiture-occasion/[^\"'?#]+\\.html"
+# Une annonce vit sous `/voiture-occasion-detail/`, une categorie sous
+# `/voiture-occasion/`. Un motif sur le second attrapait `collection.html` et
+# `Coupe-occasion.html`, qui n'ont ni prix ni kilometrage et n'en auront
+# jamais: seize liens reconnus, zero champ extrait. Le nombre long avant
+# `.html` est l'identifiant de l'annonce, distinct par vehicule (invariant 9).
+listing_link_pattern: "/voiture-occasion-detail/[^\"'?#]+-\\d{4,}\\.html"
 page_param: page
 max_pages: 10
 request_delay: 3.0
