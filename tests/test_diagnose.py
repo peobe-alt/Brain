@@ -221,7 +221,9 @@ def test_the_page_can_be_written_out_for_inspection(tmp_path):
     report = diagnose_search("https://site.fr/recherche", source="test",
                              fetcher=fetcher, save_to=target)
     assert target.read_text(encoding="utf-8") == SEARCH_OK
-    assert report.saved_to == str(target)
+    # Le chemin complet: "page.html" seul ne dit pas ou chercher.
+    assert report.saved_to == str(target.resolve())
+    assert report.saved_to.startswith("/")
 
 
 def test_the_page_proposes_the_pattern_its_own_links_repeat():

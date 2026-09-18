@@ -380,7 +380,10 @@ def diagnose_search(
             # Adapter un lecteur demande la page, pas son resume. Sans ca, la
             # seule facon de la transmettre est de la recopier a la main.
             save_to.write_text(page.text, encoding="utf-8")
-            report.saved_to = str(save_to)
+            # Le chemin complet, pas celui qu'on a tape: "leparking.html" ne
+            # dit pas dans quel dossier chercher, et c'est la seule question
+            # qu'on se pose ensuite.
+            report.saved_to = str(save_to.resolve())
         report.status = page.status
         report.page_bytes = len(page.text)
         report.note = getattr(fetcher, "escalation_blocked", "")
