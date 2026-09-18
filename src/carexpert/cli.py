@@ -451,6 +451,9 @@ def diagnose(
             f"[green]{report.results_listings}[/green] lues sans ouvrir d'annonce "
             f"({report.results_complete} completes)",
         )
+    if report.link_shapes:
+        top = report.link_shapes[0]
+        table.add_row("forme la plus frequente", f"{top[1]} x [cyan]{escape(top[2])}[/cyan]")
     if report.declared_search:
         table.add_row("recherche declaree", f"[cyan]{escape(report.declared_search)}[/cyan]")
     if report.saved_to:

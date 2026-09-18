@@ -370,3 +370,50 @@ def test_the_shipped_leparking_pattern_matches_adverts_only():
     from carexpert.sources.structured import _listing_id
 
     assert len({_listing_id(link) for link in links}) == 4
+
+
+def test_a_single_odd_link_does_not_cancel_the_whole_inference():
+    """Une annonce a l'identifiant plus court annulait toute la deduction.
+
+    `all(...)` sur les valeurs d'une position veut dire qu'un lien atypique
+    sur quarante suffit a ne plus rien proposer. Mesure: le diagnostic
+    proposait un motif au tour precedent, et plus rien au suivant.
+    """
+    links = [
+        f'<a href="/detail/renault-twingo/v{i}/twingo-{800000 + i}.html">x</a>'
+        for i in range(6)
+    ] + ['<a href="/detail/renault-twingo/v9/twingo-42.html">court</a>']
+    html = "<html><body>" + "".join(links) + "</body></html>"
+
+    pattern, count = suggest_link_pattern(html, "https://site.fr/voiture-occasion/twingo.html")
+
+    assert pattern, "un lien atypique ne doit pas annuler la deduction"
+    assert count == 7
+    assert re.search(pattern, "/detail/renault-twingo/v3/twingo-800003.html")
+
+
+def test_the_page_lists_its_own_url_families_when_nothing_matches():
+    """"Ouvrir la page et relever la forme des URL" est inutilisable a 476 Ko."""
+    from carexpert.sources.diagnose import internal_link_shapes
+
+    shapes = internal_link_shapes(LEPARKING_RESULTS, LEPARKING_SEARCH)
+    families = {shape for shape, _, _ in shapes}
+
+    assert "/voiture-occasion-detail/*/*/*" in families
+    assert "/voiture-occasion/*" in families
+    # La plus frequente d'abord: c'est celle des annonces.
+    assert shapes[0][0] == "/voiture-occasion-detail/*/*/*"
+    assert shapes[0][1] == 4
+    assert "voiture-occasion-detail" in shapes[0][2]
+
+
+def test_a_failed_pattern_prints_the_families_to_choose_from():
+    fetcher = FakeFetcher({"/voiture-occasion/": LEPARKING_RESULTS})
+    report = diagnose_search(LEPARKING_SEARCH, source="leparking",
+                             pattern=r"/rien-de-tel/\d+", fetcher=fetcher)
+
+    assert report.links_found >= 0
+    assert report.link_shapes
+    actions = report.actions()
+    assert any("Formes d'URL internes" in action for action in actions), actions
+    assert any("voiture-occasion-detail" in action for action in actions), actions

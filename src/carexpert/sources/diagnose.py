@@ -91,6 +91,11 @@ class DiagnosticReport:
     note: str = ""
     #: Ou la page lue a ete ecrite, quand `--save` le demande.
     saved_to: str = ""
+    #: Les formes d'URL internes que la page contient, la plus repetee en
+    #: tete, avec un exemple. Quand aucun lien n'est reconnu, c'est la seule
+    #: chose qui dise quoi ecrire a la place: le motif se lit sur la page, il
+    #: ne se devine pas de loin.
+    link_shapes: list[tuple[str, int, str]] = field(default_factory=list)
     #: La forme d'URL de recherche que le site declare pour lui-meme. Ne sert
     #: que quand la notre n'a rien donne: c'est alors la reponse, ecrite par
     #: le site.
@@ -204,17 +209,20 @@ class DiagnosticReport:
                 "puis `carexpert analyse-url` annonce par annonce.",
                 "Ou negocier un acces API/partenaire: c'est la seule voie propre a l'echelle.",
             ]
-        if level == "motif" and self.suggested_pattern:
-            return [
-                f"Remplacer `listing_link_pattern` par: {self.suggested_pattern}",
-                f"Fichier: src/carexpert/sources/sites/{self.source}.yaml",
-                "Puis relancer ce diagnostic.",
-            ]
         if level == "motif":
-            return [
-                "Ouvrir la page dans un navigateur et relever la forme des URL d'annonce.",
-                f"Renseigner `listing_link_pattern` dans sites/{self.source}.yaml.",
-            ]
+            lines: list[str] = []
+            if self.suggested_pattern:
+                lines.append(
+                    f"Remplacer `listing_link_pattern` par: {self.suggested_pattern}"
+                )
+            lines += self._shape_lines()
+            if self.declared_search:
+                lines.append(
+                    f"Le site declare sa forme de recherche: {self.declared_search}"
+                )
+            lines.append(f"Fichier: src/carexpert/sources/sites/{self.source}.yaml")
+            lines.append("Puis relancer ce diagnostic.")
+            return lines
         if level == "extraction" and self.samples and all(
             not sample.filled for sample in self.samples
         ):
@@ -227,6 +235,7 @@ class DiagnosticReport:
                 "probablement pas des annonces mais des pages de categorie.",
                 f"Verifier en ouvrant: {self.samples[0].url}",
             ]
+            lines += self._shape_lines()
             if self.declared_search:
                 lines += [
                     f"Le site declare lui-meme sa forme de recherche: "
@@ -261,6 +270,20 @@ class DiagnosticReport:
             f"Source exploitable. Passer `verified: true` dans sites/{self.source}.yaml.",
             f'Lancer un vrai scan: carexpert scan --source {self.source} --url "{self.url}" --deep 5',
         ]
+
+    def _shape_lines(self) -> list[str]:
+        """Les familles d'URL de la page, avec un exemple chacune.
+
+        "Ouvrir la page dans un navigateur et relever la forme des URL" est
+        vrai mais inutilisable sur 476 Ko. La page connait ses familles.
+        """
+        if not self.link_shapes:
+            return []
+        lines = ["Formes d'URL internes presentes sur la page, la plus frequente en tete:"]
+        lines += [
+            f"    {count:>4} x  {example}" for _, count, example in self.link_shapes
+        ]
+        return lines
 
     def _failure_actions(self) -> list[str]:
         """Quoi faire quand rien n'est sorti, selon ce qui a repondu.
@@ -341,6 +364,44 @@ def suggest_link_pattern(html: str, base_url: str) -> tuple[str | None, int]:
     return None, 0
 
 
+def internal_link_shapes(
+    html: str, base_url: str, limit: int = 6
+) -> list[tuple[str, int, str]]:
+    """The site's own internal URL families: (shape, count, one example).
+
+    When nothing matches, "open the page in a browser and work out the shape
+    of advert URLs" is true but useless: the page is 476 KB. The page already
+    knows its families, and printing them turns three rounds of guessing into
+    one look.
+    """
+    from .structured import _soup
+
+    host = urlparse(base_url).netloc
+    counts: Counter[str] = Counter()
+    examples: dict[str, str] = {}
+
+    for anchor in _soup(html).find_all("a", href=True):
+        href = urljoin(base_url, anchor["href"].split("#")[0].split("?")[0])
+        parsed = urlparse(href)
+        if parsed.netloc and parsed.netloc != host:
+            continue
+        segments = [part for part in parsed.path.split("/") if part]
+        if not segments:
+            continue
+        shape = "/" + "/".join(
+            [segments[0]] + ["*"] * (len(segments) - 1)
+        )
+        counts[shape] += 1
+        examples.setdefault(shape, parsed.path)
+
+    return [(shape, count, examples[shape]) for shape, count in counts.most_common(limit)]
+
+
+def _mostly(values: set[str], pattern: str, share: float = 0.7) -> bool:
+    matching = sum(1 for value in values if re.search(pattern, value))
+    return matching >= max(2, int(len(values) * share))
+
+
 def _pattern_from_group(group: list[list[str]], searched: set[str]) -> str | None:
     """One regex covering a group of same-shaped paths.
 
@@ -360,7 +421,10 @@ def _pattern_from_group(group: list[list[str]], searched: set[str]) -> str | Non
         elif all(re.fullmatch(r"\d+", value) for value in values):
             parts.append(r"\d+")
             has_identifier = True
-        elif all(re.search(r"\d{4,}", value) for value in values):
+        elif _mostly(values, r"\d{4,}"):
+            # La majorite, pas la totalite: une annonce a l'identifiant plus
+            # court que les autres annulait la deduction entiere, et le
+            # diagnostic ne proposait plus rien du tout.
             parts.append(r"[^/]*\d{4,}[^/]*")
             has_identifier = True
         else:
@@ -455,6 +519,7 @@ def diagnose_search(
             return report
 
         if not links:
+            report.link_shapes = internal_link_shapes(page.text, url)
             suggestion, count = suggest_link_pattern(page.text, url)
             if suggestion:
                 report.suggested_pattern = suggestion
