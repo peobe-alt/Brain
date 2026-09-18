@@ -80,6 +80,62 @@ du top 25, qui ne contient plus que des affaires reelles.
 
 C'est toute la raison d'etre de l'outil.
 
+## Ce que font les badges des sites, et ce qu'ils ne font pas
+
+Leboncoin, AutoScout24 et La Centrale affichent un indicateur de prix sur
+chaque annonce. Celui de leboncoin est documente par le site lui-meme, dans
+ses articles d'aide "L'indicateur prix", version acheteur et version vendeur :
+
+- il compare le prix de l'annonce a celui d'annonces similaires recemment
+  publiees sur leboncoin ;
+- il repose uniquement sur des donnees techniques declarees par le vendeur :
+  marque, modele, annee de mise en circulation, kilometrage, motorisation ;
+- cinq niveaux existent, de "nettement inferieur au marche" a "nettement
+  plus eleve". Pour l'acheteur, seuls les trois favorables sont mis en
+  avant : Tres bonne affaire, Bonne affaire, Prix equitable ;
+- l'historique d'entretien "ne peut pas etre evalue automatiquement", et le
+  site conseille au vendeur de le mentionner dans la description. La
+  description n'est donc pas lue, les photos non plus ;
+- quand la voiture est "trop specifique" ou dans un "etat atypique",
+  reparations a prevoir ou non roulant, il n'y a pas d'indicateur ;
+- pour le niveau le plus bas, le site demande au vendeur d'ecrire "les
+  particularites qui justifient ce prix". Il sait qu'un prix tres bas
+  appelle une justification, mais il ne verifie pas qu'elle existe.
+
+Ce qui n'est pas ecrit mais s'en deduit : la reference est faite de prix
+demandes, pas de prix de transaction, sur un seul site ou les particuliers
+dominent. Rien n'indique que la finition, les options ou le type de vendeur
+entrent dans le calcul. Et le badge est symetrique par construction : moins
+cher egale meilleur. C'est exactement ce que le tableau ci-dessus met en
+defaut, puisque les pieges sont les annonces les moins cheres.
+
+### Ce que cela change pour le score
+
+Le badge fait la partie du score qui coute le moins cher a reproduire, la
+position prix. Tout ce que le site declare ne pas faire est le reste du
+score : risques lus dans le texte, etat sur photos, coherence entre
+kilometrage et usure, budget de remise en etat, faiblesses connues de la
+motorisation, questions au vendeur. Quatre consequences :
+
+1. **Le badge du site est une entree, pas un concurrent.** Quand une annonce
+   nous arrive avec son badge, la position prix est deja calculee sur une
+   base bien plus large que la notre. Elle sert de prior a l'estimation quand
+   il n'y a pas de comparables, avec une confiance etiquetee comme telle, et
+   le verdict n'est plus `unknown` faute de references.
+2. **Un badge tres favorable sans justification ecrite est un signal
+   d'alerte**, pas une aubaine. L'analyse par regles le fait deja sur la
+   decote inexpliquee ; brancher ce signal sur le badge le rend disponible
+   meme sans estimation propre.
+3. **L'absence de badge est une information.** Voiture rare ou voiture
+   abimee : la lecture de la description tranche, et le site ne la fait pas.
+4. **Ne pas chercher a recalculer la position prix mieux que le site sur ses
+   propres annonces.** Il a la base, nous ne l'aurons pas. Notre estimation
+   sert la ou il n'y a pas de badge, pour comparer entre sites, et pour
+   ancrer sur une cote officielle.
+
+Sources : [l'indicateur prix, version acheteur](https://assistance.leboncoin.info/hc/fr/articles/31578868268818-L-indicateur-prix-votre-rep%C3%A8re-pour-situer-le-tarif-d-un-v%C3%A9hicule-par-rapport-au-march%C3%A9)
+et [version vendeur](https://assistance.leboncoin.info/hc/fr/articles/360009615560-L-indicateur-prix-voiture-votre-rep%C3%A8re-pour-ajuster-le-tarif-de-votre-v%C3%A9hicule-et-le-situer-par-rapport-au-march%C3%A9).
+
 ## Limites assumees
 
 - L'estimation vaut ce que vaut la base : peu d'annonces collectees sur un

@@ -21,7 +21,7 @@ Le moteur est bon. La base est vide. Et la vision d'un produit public
 repose sur une collecte massive que ce depot lui-meme decrit comme
 impossible. Tout ce qui suit decoule de ces trois phrases.
 
-**Aucune donnee reelle.** Les cinq sources sont marquees `verified: false`.
+**Aucune donnee reelle.** Aucune source n'est marquee `verified: true`.
 Les annonces de la demo sont synthetiques. L'estimation repose entierement
 sur des comparables en base : sur une base vide, elle ne produit rien.
 
@@ -35,7 +35,8 @@ apporte du signal : aucune des deux n'a ete mesuree sur du reel.
 Centrale affichent deja un badge "bon prix" face au marche. Ce que personne
 ne fait, c'est lire l'annonce comme un mandataire : incoherences, defauts
 connus de la motorisation, questions a poser, leviers de negociation. C'est
-la que la valeur se paie, et c'est la partie du code la plus aboutie.
+la que la valeur se paie, et c'est la partie du code la plus aboutie. Ce que
+ces badges font et ne font pas est detaille dans `docs/03-scoring.md`.
 
 **La contradiction a trancher.** Scanner leboncoin en masse est fragile
 techniquement (protection anti-bot, rendu JavaScript) et expose
@@ -59,7 +60,8 @@ s'ameliorent avec l'usage.
 C'est exactement ce que fait deja `carexpert scan --url ... --deep 5`,
 emballe dans une file de taches et une interface. La meme brique sert a
 "colle une annonce, obtiens l'expertise" (`carexpert analyse-url`), qui est
-le plus petit produit livrable.
+le plus petit produit livrable, et qui fonctionne sans base des lors que le
+badge de prix du site sert de prior.
 
 Ordre de grandeur d'une recherche :
 
@@ -72,11 +74,21 @@ Ordre de grandeur d'une recherche :
 Un prix unitaire de quelques euros est viable, et "trois recherches
 gratuites puis payant" en decoule naturellement.
 
+**Le badge du site comme premier prior.** Leboncoin, AutoScout24 et La
+Centrale calculent deja une position prix sur leur propre base, bien plus
+large que la notre, a partir des seules donnees techniques. Quand une
+annonce nous arrive avec son badge, on le lit comme prior : l'analyse a
+l'unite a une position prix des le premier jour, sans abonnement. Tout ce
+que ces badges ne font pas, et c'est l'essentiel de notre score, est
+detaille dans `docs/03-scoring.md`.
+
 **La cote officielle comme ancre.** En France c'est un marche B2B :
 L'Argus, Autobiz et Autovista proposent des API professionnelles. Budgeter
-un abonnement. Dans le code, la cote devient le *prior* de l'estimation et
-les comparables la *preuve*, ponderes par la confiance. Des le premier jour
-on a un prix ; il se raffine quand la base se remplit.
+un abonnement. Dans le code, badge et cote sont les *priors* de
+l'estimation et les comparables la *preuve*, ponderes par la confiance.
+Des le premier jour on a un prix ; il se raffine quand la base se remplit.
+La cote prend le relais la ou il n'y a pas de badge et pour comparer
+entre sites.
 
 ## Prochaines etapes, par ordre de valeur
 
@@ -84,28 +96,34 @@ on a un prix ; il se raffine quand la base se remplit.
    publie du `schema.org` sans JavaScript. Lancer `carexpert diagnose`,
    corriger ce qu'il signale, mesurer le taux d'extraction sur deux cents
    annonces, passer `verified: true`. Tout le reste en depend. Ne pas
-   ajouter de sixieme YAML avant.
+   activer de nouvelle source avant.
 2. **Un jeu d'evaluation reel.** Cinquante annonces reelles jugees a la
    main, seul ou avec un mandataire : prix juste, a voir, a fuir. C'est la
    seule facon de savoir si l'expertise photo aide ou fait du bruit, et de
    regler le score sans se raconter d'histoires. Ce jeu devient un test.
-3. **La cote officielle comme ancre** de l'estimation : un fournisseur
+3. **Le badge de prix du site comme prior de l'analyse a l'unite.** Le
+   stocker dans `extra` a l'extraction, le lire en repli quand il n'y a pas
+   de comparables, avec une confiance etiquetee, et brancher le signal
+   "tres bonne affaire sans justification ecrite". Le badge se lit sur la
+   page d'annonce, donc `analyse-url` le voit ; verifier sur chaque site ou
+   il apparait (balisage, texte, ou seulement en JavaScript).
+4. **La cote officielle comme ancre** de l'estimation : un fournisseur
    derriere une interface, un cache, et le melange cote / comparables
    pondere par la confiance.
-4. **La geographie.** Code postal et coordonnees sur les annonces,
+5. **La geographie.** Code postal et coordonnees sur les annonces,
    geocodage gratuit via l'API Adresse de l'Etat, filtre de distance dans
    les requetes et dans l'API. Aujourd'hui le rayon et le code postal
    existent dans `SearchQuery` mais ne servent a rien, et le code postal
    n'est meme pas stocke en base. Cela demande des migrations de schema :
    ajouter Alembic d'abord, le projet n'en a pas.
-5. **Comparables par version, puissance et carrosserie** dans les paliers.
+6. **Comparables par version, puissance et carrosserie** dans les paliers.
    La version est stockee mais jamais utilisee : un Scenic dCi 110 et un
    Scenic TCe 160 sont le meme vehicule pour l'estimateur. Sur donnees
    reelles ce sera la premiere source de bruit.
-6. **La recherche a la demande comme objet** : une table de recherches, un
+7. **La recherche a la demande comme objet** : une table de recherches, un
    worker, un endpoint de creation, une page de resultats avec le
    classement explique. C'est le produit.
-7. **Comptes, quotas, paiement**, en dernier, quand une recherche a ete
+8. **Comptes, quotas, paiement**, en dernier, quand une recherche a ete
    utilisee par quelqu'un d'autre que son auteur.
 
 ## Ce qu'on ne fait pas maintenant
@@ -117,7 +135,10 @@ on a un prix ; il se raffine quand la base se remplit.
   deux pays.
 - **L'historique VIN.** Histovec exige les donnees du proprietaire et ne
   s'utilise pas en masse. A brancher le jour ou un fournisseur existe.
-- **Une sixieme source.** Une source verifiee vaut mieux que cinq gabarits.
+- **Une source de plus.** Une source verifiee vaut mieux que six gabarits.
+- **Recalculer la position prix de leboncoin sur ses propres annonces.** Le
+  site a la base, nous ne l'aurons pas. Notre estimation sert la ou il n'y
+  a pas de badge, et pour comparer entre sites.
 - **Etoffer la base de faiblesses connues** avant que le jeu d'evaluation
   ne dise ce qui manque vraiment.
 
