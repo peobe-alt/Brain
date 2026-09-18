@@ -341,6 +341,7 @@ VERDICT_DIAG = {
     "motif": ("yellow", "MOTIF DE LIEN A CORRIGER"),
     "js": ("red", "SITE RENDU EN JAVASCRIPT"),
     "interdit": ("red", "INTERDIT PAR LE ROBOTS.TXT"),
+    "refus": ("red", "ACCES REFUSE PAR LE SITE"),
     "echec": ("red", "SITE INJOIGNABLE"),
 }
 

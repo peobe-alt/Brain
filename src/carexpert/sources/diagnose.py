@@ -26,6 +26,11 @@ from .structured import extract_from_page, extract_jsonld, find_vehicle_node
 CRITICAL_FIELDS = ("price_eur", "km", "year", "make")
 USEFUL_FIELDS = ("model", "fuel", "gearbox", "power_hp", "photos", "description")
 
+#: Statuses that mean "we know who you are and we are saying no", as opposed
+#: to a broken URL or a site having a bad day. They call for a different
+#: answer: not a retry, and never a workaround.
+REFUSAL_STATUSES = frozenset({401, 403, 407})
+
 #: Markers left by client-side frameworks: their presence next to an empty
 #: link harvest means the adverts are rendered in the browser, not served.
 JS_MARKERS = (
@@ -77,6 +82,10 @@ class DiagnosticReport:
             return "echec", self.error
         if not self.robots_allows:
             return "interdit", "le robots.txt du site interdit cette URL"
+        if self.status in REFUSAL_STATUSES:
+            return "refus", (
+                f"le site refuse la requete (HTTP {self.status}): protection anti-bot probable"
+            )
         if self.status >= 400:
             return "echec", f"le site repond HTTP {self.status}"
         if self.links_found == 0 and self.js_suspected:
@@ -100,6 +109,27 @@ class DiagnosticReport:
             return [
                 "Ne pas collecter cette URL.",
                 "Chercher un flux officiel ou une offre professionnelle aupres du site.",
+            ]
+        # A failed run proves nothing about the source, so it must never end on
+        # "passer verified: true". The silent version of this said exactly that
+        # on a 403, which is the most common way a real site answers a robot.
+        if level == "refus":
+            return [
+                "Ne pas contourner: un site qui bloque a signifie son refus, et le "
+                "contourner change la nature juridique de l'acte.",
+                "Verifier d'abord l'evidence: un CAREXPERT_USER_AGENT portant un contact "
+                "reel, et un rythme lent.",
+                "Sinon, passer par un flux officiel ou une offre professionnelle, ou "
+                "analyser les annonces une par une avec `carexpert analyse-url`.",
+            ]
+        if level == "echec":
+            cause = self.error or f"HTTP {self.status}"
+            return [
+                f"Rien n'a pu etre lu: {cause}.",
+                f"Laisser `verified: false` dans sites/{self.source}.yaml: ce "
+                "diagnostic n'a rien verifie du tout.",
+                "Ouvrir l'URL dans un navigateur pour voir ce que le site repond, puis "
+                "relancer ce diagnostic.",
             ]
         if level == "js":
             return [

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from carexpert.sources.diagnose import diagnose_search, suggest_link_pattern
-from carexpert.sources.fetcher import FetchResult
+from carexpert.sources.fetcher import FetchError, FetchResult
 
 LISTING_OK = """<html><head>
 <script type="application/ld+json">
@@ -110,11 +110,60 @@ def test_missing_data_points_at_the_selectors():
     assert any("selectors" in action for action in report.actions())
 
 
+class DeadFetcher(FakeFetcher):
+    """A host that never answers: the fetcher gives up after its retries."""
+
+    def get(self, url, use_cache=True):
+        self.calls.append(url)
+        raise FetchError(f"echec de recuperation de {url}: timeout")
+
+
 def test_http_error_is_reported_plainly():
-    fetcher = FakeFetcher({"/recherche": SEARCH_OK}, status=403)
+    fetcher = FakeFetcher({"/recherche": SEARCH_OK}, status=404)
     report = diagnose_search("https://site.fr/recherche", source="test", fetcher=fetcher)
     assert report.verdict()[0] == "echec"
+    assert "404" in report.verdict()[1]
+
+
+def test_a_refused_request_is_named_as_a_refusal_not_a_breakdown():
+    """403 is the usual answer of a protected site, and it has its own reply."""
+    fetcher = FakeFetcher({"/recherche": SEARCH_OK}, status=403)
+    report = diagnose_search("https://site.fr/recherche", source="test", fetcher=fetcher)
+    assert report.verdict()[0] == "refus"
     assert "403" in report.verdict()[1]
+    assert any("Ne pas contourner" in action for action in report.actions())
+
+
+def test_a_failed_run_never_claims_the_source_is_usable():
+    """The silent version of this said "passer verified: true" on a 403.
+
+    A diagnostic that verified nothing must not hand back the conclusion of a
+    diagnostic that verified everything: that is how an unusable source gets
+    switched on.
+    """
+    unusable = [
+        FakeFetcher({"/recherche": SEARCH_OK}, status=403),   # refus
+        FakeFetcher({"/recherche": SEARCH_OK}, status=404),   # URL cassee
+        FakeFetcher({"/recherche": SEARCH_OK}, status=503),   # site en panne
+        DeadFetcher({}),                                      # injoignable
+        FakeFetcher({"/recherche": SEARCH_OK}, allowed=False),  # robots.txt
+    ]
+    for fetcher in unusable:
+        report = diagnose_search("https://site.fr/recherche", source="test", fetcher=fetcher)
+        actions = report.actions()
+        assert report.verdict()[0] in ("refus", "echec", "interdit")
+        assert actions, "un echec doit dire quoi faire"
+        for action in actions:
+            assert "Source exploitable" not in action, report.verdict()
+            assert "verified: true" not in action, report.verdict()
+
+
+def test_an_unreachable_site_says_so_and_keeps_the_reason():
+    fetcher = DeadFetcher({})
+    report = diagnose_search("https://site.fr/recherche", source="test", fetcher=fetcher)
+    assert report.verdict()[0] == "echec"
+    assert "timeout" in report.verdict()[1]
+    assert any("Rien n'a pu etre lu" in action for action in report.actions())
 
 
 def test_pattern_suggestion_picks_the_repeated_shape():
