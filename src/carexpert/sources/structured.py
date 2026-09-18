@@ -343,6 +343,30 @@ def split_fragment_route(url: str) -> tuple[str, str]:
     return urlunparse(parsed._replace(fragment="")), unquote(parsed.fragment)
 
 
+#: `canonical` nomme la page telle que le site veut la voir indexee,
+#: `alternate` ses variantes de langue ou de pays.
+CANONICAL_RELS = {"canonical", "alternate"}
+
+
+def extract_canonical_links(html: str, base_url: str) -> list[str]:
+    """Server-rendered URLs the page names for itself.
+
+    On a client-routed site these are the few URLs proven to exist server
+    side: a page cannot advertise a canonical it does not serve without
+    breaking its own indexing. That makes them the natural starting point
+    when the pasted search URL turns out to reach nothing.
+    """
+    found: list[str] = []
+    for link in _soup(html).find_all("link", href=True):
+        rels = {str(rel).lower() for rel in (link.get("rel") or [])}
+        if not rels & CANONICAL_RELS:
+            continue
+        url = canonical_url(urljoin(base_url, link["href"]))
+        if url not in found:
+            found.append(url)
+    return found
+
+
 def extract_opengraph(html: str) -> dict[str, str]:
     data: dict[str, str] = {}
     for meta in _soup(html).find_all("meta"):

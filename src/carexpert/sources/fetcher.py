@@ -146,6 +146,22 @@ class PoliteFetcher:
             return True
         return parser.can_fetch(self.user_agent, url)
 
+    def sitemaps(self, url: str) -> list[str]:
+        """Sitemaps the host advertises in its robots.txt.
+
+        robots.txt is fetched once per host and cached, so any caller that
+        already checked `allowed()` gets this for free. When a site renders
+        its search client side, this is the one inventory of server-rendered
+        URLs it publishes on purpose.
+
+        Reporting only: unlike `allowed` and `crawl_delay`, this applies no
+        rule, so it reads robots.txt whatever `respect_robots` says.
+        """
+        parser = self._robots_for(url)
+        if parser is None:
+            return []
+        return list(parser.site_maps() or [])
+
     def crawl_delay(self, url: str) -> float:
         parser = self._robots_for(url) if self.respect_robots else None
         if parser is not None:

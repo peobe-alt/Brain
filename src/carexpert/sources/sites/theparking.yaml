@@ -28,9 +28,11 @@ verified: false
 # URL de recherche servie par le serveur n'a pas ete relevee sur le site, il
 # n'y a rien a templater.
 #
-# Pour la completer: ouvrir une annonce depuis la recherche, copier SON URL
-# (les agregateurs gardent des pages servies par le serveur pour le
-# referencement), puis relever la forme de l'URL de recherche correspondante.
+# Pour la completer: lancer le diagnostic, qui rend deux pistes sans requete
+# supplementaire (les URL canoniques de la page, et les sitemaps annonces par
+# le robots.txt), puis ouvrir une annonce depuis la recherche et copier SON
+# URL. Les agregateurs gardent des pages servies par le serveur pour le
+# referencement: c'est par la que la source deviendra collectable.
 
 # `listing_link_pattern` est absent, pas vide: un motif vide est une
 # expression reguliere qui matche tout, donc `/aide` et `/cgu` collectes

@@ -420,6 +420,8 @@ def diagnose(
         table.add_row("motif suggere", f"[yellow]{report.suggested_pattern}[/yellow]")
     if report.js_suspected:
         table.add_row("rendu", "[red]JavaScript detecte[/red]")
+    if report.sitemaps:
+        table.add_row("sitemaps annonces", "\n".join(report.sitemaps[:3]))
     console.print(table)
 
     if report.samples:

@@ -36,15 +36,20 @@ class FakeFetcher:
     """Serves canned pages, so the diagnostic is testable without network."""
 
     def __init__(self, pages: dict[str, str], *, allowed: bool = True,
-                 robots: bool = True, status: int = 200) -> None:
+                 robots: bool = True, status: int = 200,
+                 sitemaps: list[str] | None = None) -> None:
         self.pages = pages
         self._allowed = allowed
         self._robots = robots
+        self._sitemaps = sitemaps or []
         self.status = status
         self.calls: list[str] = []
 
     def _robots_for(self, url):
         return object() if self._robots else None
+
+    def sitemaps(self, url):
+        return list(self._sitemaps) if self._robots else []
 
     def allowed(self, url):
         return self._allowed
@@ -234,3 +239,85 @@ def test_a_plain_anchor_is_not_a_route():
 
     assert report.fragment_route == ""
     assert report.verdict()[0] == "ok"
+
+
+# --- Ne pas laisser l'utilisateur chercher seul ----------------------------
+#
+# Dire "trouvez une URL servie par le serveur" est un renvoi, pas une action.
+# Deux pistes sont deja payees au moment du verdict: le robots.txt (telecharge
+# pour la politesse) annonce les sitemaps, et la page se nomme elle-meme.
+
+HOME_WITH_LEADS = """<html><head>
+<link rel="canonical" href="/used-cars/volvo-v70.html">
+<link rel="alternate" hreflang="de" href="/de/used-cars/volvo-v70.html">
+<link rel="stylesheet" href="/style.css">
+</head><body><div id="__next"></div>
+<script id="__NEXT_DATA__" type="application/json">{"props":{}}</script>
+</body></html>"""
+
+
+def test_a_dead_end_still_hands_back_the_leads_already_paid_for():
+    fetcher = FakeFetcher(
+        {"theparking.eu": HOME_WITH_LEADS},
+        sitemaps=["https://www.theparking.eu/sitemap-index.xml"],
+    )
+    report = diagnose_search(HASHBANG_URL, source="theparking", fetcher=fetcher)
+    actions = " ".join(report.actions())
+
+    assert report.verdict()[0] == "fragment"
+    assert "/used-cars/volvo-v70.html" in actions
+    assert "sitemap-index.xml" in actions
+    # Toujours une seule requete: les deux pistes sortent de ce qu'on avait deja.
+    assert len(fetcher.calls) == 1
+
+
+def test_a_javascript_site_gets_the_same_leads():
+    """Meme impasse, meme sortie: le sitemap ne depend pas du rendu."""
+    fetcher = FakeFetcher(
+        {"/recherche": HOME_WITH_LEADS},
+        sitemaps=["https://site.fr/sitemap.xml"],
+    )
+    report = diagnose_search("https://site.fr/recherche", source="test",
+                             pattern=r"/annonce/\d+", fetcher=fetcher)
+
+    assert report.verdict()[0] == "js"
+    assert "sitemap.xml" in " ".join(report.actions())
+
+
+def test_a_stylesheet_is_not_a_server_side_lead():
+    """Sans filtre sur `rel`, chaque feuille de style passerait pour une piste."""
+    fetcher = FakeFetcher({"theparking.eu": HOME_WITH_LEADS})
+    report = diagnose_search(HASHBANG_URL, source="theparking", fetcher=fetcher)
+
+    assert all("style.css" not in link for link in report.server_side_links)
+    assert len(report.server_side_links) == 2
+
+
+def test_no_leads_means_no_empty_promises():
+    """Une page muette ne doit pas produire de ligne d'action vide."""
+    fetcher = FakeFetcher({"theparking.eu": HOME_PAGE})
+    report = diagnose_search(HASHBANG_URL, source="theparking", fetcher=fetcher)
+
+    assert report.sitemaps == [] and report.server_side_links == []
+    assert all(action.strip() for action in report.actions())
+    assert not any("sitemap" in action.lower() for action in report.actions())
+
+
+def test_a_refusal_gets_no_workaround():
+    """Un robots.txt qui interdit est un refus, pas un probleme a resoudre.
+
+    Les pistes serveur sont utiles face a une impasse technique. Face a un
+    refus explicite, les afficher reviendrait a proposer un contournement.
+    """
+    fetcher = FakeFetcher(
+        {"theparking.eu": HOME_WITH_LEADS},
+        allowed=False,
+        sitemaps=["https://www.theparking.eu/sitemap-index.xml"],
+    )
+    report = diagnose_search(HASHBANG_URL, source="theparking", fetcher=fetcher)
+    actions = " ".join(report.actions())
+
+    assert report.verdict()[0] == "interdit"
+    assert "sitemap" not in actions.lower()
+    assert "Ne pas collecter" in actions
+    assert fetcher.calls == []

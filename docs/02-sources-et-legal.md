@@ -73,11 +73,27 @@ envoyee et rend les filtres perdus, decodes. Il ne va pas plus loin : ouvrir
 les annonces de la page d'accueil couterait des requetes pour un echantillon
 hors sujet.
 
-La sortie, quand elle existe, est une URL servie par le serveur. Les
-agregateurs en gardent presque toujours pour le referencement : ouvrir une
-annonce depuis la recherche, copier **son** URL, et repartir de la. Sans
-cela, la source n'est pas collectable en HTTP simple, et c'est le meme
-arbitrage que pour un site rendu en JavaScript (section precedente).
+La sortie, quand elle existe, est une URL servie par le serveur. Le
+diagnostic ne se contente pas de le dire, il rend deux pistes qu'il a deja
+payees :
+
+- **les URL que la page se donne a elle-meme** (`rel=canonical`,
+  `rel=alternate`). Une page ne peut pas declarer une canonique qu'elle ne
+  sert pas sans casser son propre referencement : ces URL existent donc cote
+  serveur ;
+- **les sitemaps annonces par le `robots.txt`**, deja telecharge pour la
+  verification de politesse. Un sitemap est, par definition, l'inventaire
+  des URL que le site veut voir indexees, donc rendues par le serveur. Sur
+  un site dont la recherche est cliente, c'est le meilleur point d'entree.
+
+Aucune requete supplementaire n'est emise pour les obtenir. Reste ensuite a
+ouvrir une annonce depuis la recherche et copier **son** URL. Sans cela, la
+source n'est pas collectable en HTTP simple, et c'est le meme arbitrage que
+pour un site rendu en JavaScript (section suivante), qui recoit d'ailleurs
+les memes pistes.
+
+Une exception voulue : quand le `robots.txt` **interdit** l'URL, aucune piste
+n'est affichee. Un refus n'est pas une impasse technique a contourner.
 
 Le meme garde-fou existe cote collecte : `carexpert scan --url "<URL a
 fragment>"` retire le fragment, previent dans les logs et dit quelle URL

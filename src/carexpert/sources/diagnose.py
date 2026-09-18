@@ -21,6 +21,7 @@ from ..normalize import enrich
 from ..schemas import ListingData
 from .fetcher import FetchError, PoliteFetcher, RobotsDisallowed
 from .structured import (
+    extract_canonical_links,
     extract_from_page,
     extract_jsonld,
     extract_listings_from_search,
@@ -72,6 +73,11 @@ class DiagnosticReport:
     fragment_route: str = ""
     #: URL reellement demandee, une fois le fragment retire.
     fetched_url: str = ""
+    #: Pistes vers des URL servies par le serveur, quand la recherche collee
+    #: n'en est pas une: sitemaps annonces par le robots.txt, et URL que la
+    #: page nomme pour elle-meme.
+    sitemaps: list[str] = field(default_factory=list)
+    server_side_links: list[str] = field(default_factory=list)
     #: Annonces lues directement dans le JSON-LD de la page de resultats.
     results_listings: int = 0
     results_complete: int = 0
@@ -121,6 +127,27 @@ class DiagnosticReport:
             )
         return "ok", f"{self.links_found} annonces detectees, extraction complete sur l'echantillon"
 
+    def _server_side_leads(self) -> list[str]:
+        """Where a server-rendered URL can still be found, if anywhere.
+
+        Both leads are already paid for: robots.txt was fetched for the
+        politeness check, the page for the diagnostic itself.
+        """
+        lines: list[str] = []
+        if self.server_side_links:
+            lines.append(
+                "URL que la page se donne a elle-meme (servies par le serveur, donc "
+                "lisibles sans JavaScript): " + ", ".join(self.server_side_links[:3])
+            )
+        if self.sitemaps:
+            lines.append(
+                "Le site annonce son inventaire d'URL dans son robots.txt: "
+                + ", ".join(self.sitemaps[:3])
+                + ". C'est la que vivent les pages servies par le serveur; y relever "
+                "la forme d'une recherche et d'une annonce."
+            )
+        return lines
+
     def actions(self) -> list[str]:
         """What to do next, concretely."""
         level, _ = self.verdict()
@@ -163,13 +190,14 @@ class DiagnosticReport:
                     "Piste relevee sur la page recue, forme d'URL la plus repetee: "
                     f"{self.suggested_pattern}"
                 )
+            lines.extend(self._server_side_leads())
             lines.append(
                 "Sans URL de recherche servie par le serveur, la source reste hors de "
                 "portee en HTTP simple: alertes natives du site, ou acces API/partenaire."
             )
             return lines
         if level == "js":
-            return [
+            return self._server_side_leads() + [
                 "Passer par les alertes natives du site, puis `carexpert analyse-url` annonce par annonce.",
                 "Ou negocier un acces API/partenaire: c'est la seule voie propre a l'echelle.",
                 "Le rendu headless reste possible pour un usage personnel, a faible volume.",
@@ -298,6 +326,8 @@ def diagnose_search(
         links = extract_listing_links(page.text, fetch_url, pattern)
         report.links_found = len(links)
         report.js_suspected = any(marker in page.text for marker in JS_MARKERS)
+        report.sitemaps = fetcher.sitemaps(fetch_url)
+        report.server_side_links = extract_canonical_links(page.text, fetch_url)
 
         # Voie liste: ce que la page de resultats donne sans rien ouvrir.
         rows = extract_listings_from_search(page.text, base_url=fetch_url, source=source)
