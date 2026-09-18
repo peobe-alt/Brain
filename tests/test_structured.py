@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from carexpert.sources.structured import (
     extract_from_page,
     extract_jsonld,
@@ -58,3 +60,98 @@ def test_listing_links_are_filtered_by_pattern():
 
 def test_unparseable_page_returns_none():
     assert extract_from_page("<html><body>rien</body></html>", url="u", source="t") is None
+
+
+# --- Identifiants d'annonce, sur des URL reelles ---------------------------
+
+AUTOSCOUT_URLS = [
+    ("https://www.autoscout24.fr/offres/volvo-v70-2-4-d5-edition-ii-diesel-bleu"
+     "-cat_ma73mo2079-7cf2f649-3e12-4b15-adf5-c446a15c7e9f"
+     "?ipc=recommendation&ipl=homepage-bestresult-listings&position=3",
+     "7cf2f649-3e12-4b15-adf5-c446a15c7e9f"),
+    ("https://www.autoscout24.fr/offres/audi-q3-35-tfsi-150-s-tronic-business-line"
+     "-1ere-main-francaise-cuir-essence-gris-cat_ma9mo19715"
+     "-1920dd58-65cb-4eaa-ac78-c0640a0f14ac?source_otp=t30&position=7",
+     "1920dd58-65cb-4eaa-ac78-c0640a0f14ac"),
+    ("https://www.autoscout24.fr/offres/porsche-cayman-s-allemagne-autres-noir"
+     "-cat_ma57mo18684-2157f4f8-d523-4d42-9f65-d1a2ed724445?source_otp=t30&position=12",
+     "2157f4f8-d523-4d42-9f65-d1a2ed724445"),
+]
+
+
+@pytest.mark.parametrize("url,expected", AUTOSCOUT_URLS)
+def test_the_advert_id_is_the_uuid_not_the_model_id(url, expected):
+    """`cat_ma73mo2079` carries the *model* id, shared by every Volvo V70.
+
+    Reading it as the advert id makes all V70 adverts collide on the database
+    unique key, so the base keeps exactly one of them - silently.
+    """
+    from carexpert.sources.structured import _listing_id
+
+    assert _listing_id(url) == expected
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("https://suchen.mobile.de/fahrzeuge/details.html?id=428391234", "428391234"),
+        ("https://www.lacentrale.fr/auto-occasion-annonce-69108123456.html", "69108123456"),
+        ("https://www.leboncoin.fr/ad/voitures/2891234567", "2891234567"),
+    ],
+)
+def test_advert_ids_from_other_european_sites(url, expected):
+    """mobile.de puts its id in the query, not the path."""
+    from carexpert.sources.structured import _listing_id
+
+    assert _listing_id(url) == expected
+
+
+def test_two_adverts_never_share_an_id():
+    from carexpert.sources.structured import _listing_id
+
+    ids = {_listing_id(url) for url, _ in AUTOSCOUT_URLS}
+    assert len(ids) == len(AUTOSCOUT_URLS)
+
+
+def test_tracking_parameters_are_stripped():
+    from carexpert.sources.structured import canonical_url
+
+    base = AUTOSCOUT_URLS[0][0]
+    assert "position=" not in canonical_url(base)
+    assert "ipc=" not in canonical_url(base)
+    assert canonical_url(base).startswith("https://www.autoscout24.fr/offres/volvo-v70")
+
+
+def test_the_same_advert_linked_three_times_is_fetched_once():
+    """A results page links one car from its card, its title and its photo."""
+    import yaml
+    from pathlib import Path
+
+    from carexpert.sources.structured import extract_listing_links
+
+    config = yaml.safe_load(
+        (Path("src/carexpert/sources/sites/autoscout24.yaml")).read_text(encoding="utf-8")
+    )
+    plain = AUTOSCOUT_URLS[0][0].split("?")[0]
+    html = "<html><body>" + "".join(
+        f'<a href="{plain}?position={i}&source_otp=t{i}">x</a>' for i in range(3)
+    ) + f'<a href="{AUTOSCOUT_URLS[1][0]}">y</a>' \
+      + '<a href="/offres/voitures-occasion">categorie</a></body></html>'
+
+    links = extract_listing_links(html, "https://www.autoscout24.fr",
+                                  config["listing_link_pattern"])
+    assert len(links) == 2
+
+
+def test_the_configured_pattern_matches_real_adverts():
+    import yaml
+    from pathlib import Path
+    import re
+
+    config = yaml.safe_load(
+        (Path("src/carexpert/sources/sites/autoscout24.yaml")).read_text(encoding="utf-8")
+    )
+    regex = re.compile(config["listing_link_pattern"])
+    for url, _ in AUTOSCOUT_URLS:
+        assert regex.search(url), url
+    assert not regex.search("https://www.autoscout24.fr/offres/voitures-occasion")

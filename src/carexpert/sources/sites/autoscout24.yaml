@@ -12,7 +12,11 @@ base_url: https://www.autoscout24.fr
 # puis la passer telle quelle a `carexpert scan --url "<url collee>"`.
 verified: false
 search_url: "https://www.autoscout24.fr/lst/{make}/{model}?sort=standard&desc=0&pricefrom={price_min}&priceto={price_max}&kmto={km_max}&fregfrom={year_min}&page={page}"
-listing_link_pattern: "/offres/[^?#]+"
+# Forme reelle relevee sur des annonces du site:
+#   /offres/<slug>-cat_ma<marque>mo<modele>-<uuid>
+# L'UUID final est l'identifiant de l'annonce. L'exiger evite de collecter
+# les pages de categorie qui vivent aussi sous /offres/.
+listing_link_pattern: "/offres/[^/?#]+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 
 max_pages: 3
 request_delay: 3.0

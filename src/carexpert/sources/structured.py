@@ -15,7 +15,7 @@ import json
 import logging
 import re
 from typing import Any, Iterable
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qs, parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
 
@@ -231,11 +231,60 @@ def listing_from_jsonld(
     return listing
 
 
+#: Advert identifiers, in the order sites actually use them.
+UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
+ID_PARAMS = ("id", "adid", "listingid", "annonceid", "offerid", "vehicleid")
+
+#: Query parameters that identify where a click came from, not what it points
+#: at. Two links to the same advert differ only by these.
+TRACKING_PARAMS = {
+    "ipc", "ipl", "source", "source_otp", "position", "ap_tier", "boost_level",
+    "applied_boost_level", "relevance_adjustment", "boosting_product", "ref",
+    "referrer", "cid", "gclid", "fbclid", "msclkid", "utm_source", "utm_medium",
+    "utm_campaign", "utm_term", "utm_content", "search_id", "sort", "atype",
+}
+
+
 def _listing_id(url: str) -> str:
-    path = urlparse(url).path.rstrip("/")
+    """The site's own identifier for this advert.
+
+    Getting this wrong is expensive and silent: the identifier is half of the
+    database's unique key, so two adverts that collide overwrite each other.
+    A naive "last long number in the path" reads `cat_ma73mo2079` on
+    AutoScout24 and hands back the *model* id, which every Volvo V70 on the
+    site shares - the comparables pool would then hold exactly one V70.
+    """
+    parsed = urlparse(url)
+    path = parsed.path.rstrip("/")
+
+    match = UUID_RE.search(path)
+    if match:
+        return match.group(0).lower()
+
+    query = parse_qs(parsed.query)
+    for key, values in query.items():
+        if key.lower() in ID_PARAMS and values and values[0].strip():
+            return values[0].strip()[:120]
+
     tail = path.rsplit("/", 1)[-1] if path else url
-    digits = re.findall(r"\d{4,}", tail)
-    return digits[-1] if digits else (tail or url)[:120]
+    # A model id sits inside a `cat_ma..mo..` segment: never read it as the
+    # advert id.
+    cleaned = re.sub(r"cat_ma\d+mo\d+", "", tail, flags=re.I)
+    digits = re.findall(r"\d{5,}", cleaned)
+    if digits:
+        return max(digits, key=len)
+    return (tail or url)[:120]
+
+
+def canonical_url(url: str) -> str:
+    """Same advert, same string: drops the parameters that only track clicks."""
+    parsed = urlparse(url)
+    kept = [
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=False)
+        if key.lower() not in TRACKING_PARAMS
+    ]
+    return urlunparse(parsed._replace(query=urlencode(kept), fragment=""))
 
 
 def extract_opengraph(html: str) -> dict[str, str]:
@@ -277,15 +326,25 @@ def select_field(html: str, selector: str, attr: str = "text") -> str | None:
 
 
 def extract_listing_links(html: str, base_url: str, pattern: str) -> list[str]:
-    """Collect advert URLs from a search-results page."""
+    """Collect advert URLs from a search-results page.
+
+    Deduplicated on the advert itself, not on the link: a results page links
+    the same car from a card, a title and a photo, each carrying different
+    tracking parameters. Without this the crawler fetches one advert three
+    times and spends its politeness budget on nothing.
+    """
     regex = re.compile(pattern)
     links: list[str] = []
     seen: set[str] = set()
     for anchor in _soup(html).find_all("a", href=True):
-        href = urljoin(base_url, anchor["href"].split("#")[0])
-        if regex.search(href) and href not in seen:
-            seen.add(href)
-            links.append(href)
+        href = canonical_url(urljoin(base_url, anchor["href"]))
+        if not regex.search(href):
+            continue
+        key = _listing_id(href)
+        if key in seen:
+            continue
+        seen.add(key)
+        links.append(href)
     return links
 
 

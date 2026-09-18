@@ -51,6 +51,27 @@ La commande enchaine, au rythme poli du site :
 Elle se termine par un verdict et la liste des corrections a apporter. C'est
 le premier reflexe avant d'ajouter ou de reactiver une source.
 
+## Forme des URL d'annonce
+
+Le motif de lien d'une source sert a deux choses : reconnaitre une annonce
+dans une page de resultats, et en tirer son identifiant. Les deux comptent.
+
+AutoScout24, par exemple, publie ses annonces sous la forme
+
+```
+/offres/<slug>-cat_ma<marque>mo<modele>-<uuid>
+```
+
+L'identifiant de l'annonce est l'UUID final. Le segment `cat_ma73mo2079`
+contient l'identifiant du *modele*, partage par tous les vehicules du meme
+modele : le confondre avec celui de l'annonce ferait s'ecraser toutes les
+Volvo V70 sur une seule ligne en base, sans aucun message d'erreur.
+
+Les liens sont aussi normalises avant d'etre suivis : une page de resultats
+pointe la meme voiture depuis sa vignette, son titre et sa photo, avec des
+parametres de suivi differents a chaque fois. Sans normalisation, le
+robot ouvre trois fois la meme annonce.
+
 ## Sites rendus en JavaScript
 
 `lacentrale`, `leboncoin` et `coches.net` rendent leurs resultats cote

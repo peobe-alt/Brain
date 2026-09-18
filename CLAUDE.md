@@ -54,7 +54,12 @@ Chacun vient d'un defaut reel, mesure :
 8. **Les alertes se basent sur l'etat stocke**, pas sur ce que la passe en
    cours a recalcule : une veille creee aujourd'hui doit remonter une affaire
    notee hier.
-9. **La detection de mots-cles se fait sur des frontieres de mots.** Sinon
+9. **L'identifiant d'annonce ne se devine pas au dernier nombre de l'URL.**
+   Sur AutoScout24 le segment `cat_ma73mo2079` porte l'identifiant du
+   *modele*, partage par toutes les Volvo V70 : le lire comme identifiant
+   d'annonce fait s'ecraser toutes les V70 sur la meme cle unique. Chercher
+   l'UUID, puis un parametre `id` de la query, puis seulement un nombre long.
+10. **La detection de mots-cles se fait sur des frontieres de mots.** Sinon
    `sw` matche dans `volkswagen`, `import` dans `importante`, et `electrique`
    dans `hayon electrique`. Les negations comptent : `jamais accidente` n'est
    pas `accidente`.
