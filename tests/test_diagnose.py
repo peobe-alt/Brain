@@ -249,3 +249,51 @@ def test_the_page_proposes_the_pattern_its_own_links_repeat():
     assert report.suggested_pattern
     assert "annonce" in report.suggested_pattern
     assert any("Motif deduit de la page" in action for action in report.actions())
+
+
+HOMEPAGE = """<html><head><title>Le Parking</title>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite",
+"url":"https://www.leparking.fr/","name":"leparking",
+"potentialAction":{"@type":"SearchAction",
+"target":"https://www.leparking.fr/voiture-occasion/{search_term_string}.html",
+"query-input":"required name=search_term_string"}}</script></head>
+<body>
+<a href="/voiture-occasion/renault.html">Renault</a>
+<a href="/voiture-occasion/collection.html">Collection</a>
+<a href="/voiture-occasion/Coupe-occasion.html">Coupe</a>
+</body></html>"""
+
+
+def test_a_wrong_search_url_lands_on_the_homepage_in_http_200():
+    """Mesure sur leparking: /voitures-occasion/ au pluriel redirige sur
+    l'accueil. HTTP 200, 170 Ko, une page pleine: rien ne la distingue d'un
+    resultat vide, et le diagnostic accusait le motif de lien.
+
+    Le site publie pourtant la bonne forme dans le `SearchAction` de son
+    JSON-LD. C'est la reponse, ecrite par le site lui-meme.
+    """
+    fetcher = FakeFetcher({"/voitures-occasion/": HOMEPAGE,
+                           "/voiture-occasion/": "<html><body>Categorie</body></html>"})
+    report = diagnose_search(
+        "https://www.leparking.fr/voitures-occasion/renault-twingo.html",
+        source="leparking", pattern=r"/voiture-occasion/[^\"'?#]+\.html",
+        fetcher=fetcher,
+    )
+
+    assert report.declared_search == (
+        "https://www.leparking.fr/voiture-occasion/{search_term_string}.html"
+    )
+    actions = report.actions()
+    assert any("declare lui-meme sa forme de recherche" in a for a in actions), actions
+    assert any("redirige sur l'accueil" in a for a in actions), actions
+
+
+def test_the_declared_search_url_is_read_from_the_site_markup():
+    from carexpert.sources.structured import declared_search_url
+
+    assert declared_search_url(HOMEPAGE) == (
+        "https://www.leparking.fr/voiture-occasion/{search_term_string}.html"
+    )
+    # Pas de SearchAction, pas d'invention.
+    assert declared_search_url("<html><body>rien</body></html>") is None
+    assert declared_search_url(SEARCH_OK) is None

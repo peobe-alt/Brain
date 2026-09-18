@@ -16,7 +16,13 @@ countries: [FR, BE, DE, ES, IT, NL]
 default_country: FR
 base_url: https://www.leparking.fr
 verified: false
-search_url: "https://www.leparking.fr/voitures-occasion/{make}-{model}.html?prix_max={price_max}&km_max={km_max}&annee_min={year_min}&page={page}"
+# Forme publiee par le site lui-meme, dans le `SearchAction` de son JSON-LD:
+#   https://www.leparking.fr/voiture-occasion/{search_term_string}.html
+# Au singulier. Le pluriel redirige sur l'accueil, en HTTP 200 et 170 Ko: une
+# page pleine, sans une annonce, que rien ne distingue d'un resultat vide.
+# Les parametres de filtre ne sont pas documentes la: une recherche filtree se
+# construit dans l'interface du site et se colle avec --url.
+search_url: "https://www.leparking.fr/voiture-occasion/{make}-{model}.html?page={page}"
 listing_link_pattern: "/voiture-occasion/[^\"'?#]+\\.html"
 page_param: page
 max_pages: 10

@@ -91,6 +91,10 @@ class DiagnosticReport:
     note: str = ""
     #: Ou la page lue a ete ecrite, quand `--save` le demande.
     saved_to: str = ""
+    #: La forme d'URL de recherche que le site declare pour lui-meme. Ne sert
+    #: que quand la notre n'a rien donne: c'est alors la reponse, ecrite par
+    #: le site.
+    declared_search: str = ""
     #: La protection qui a repondu a la place de la page, nommee. Un refus
     #: rendu comme "HTTP 403" se lit comme une panne, alors que c'est une
     #: decision du site: les deux ne se corrigent pas pareil.
@@ -223,6 +227,13 @@ class DiagnosticReport:
                 "probablement pas des annonces mais des pages de categorie.",
                 f"Verifier en ouvrant: {self.samples[0].url}",
             ]
+            if self.declared_search:
+                lines += [
+                    f"Le site declare lui-meme sa forme de recherche: "
+                    f"{self.declared_search}",
+                    "La comparer a l'URL testee ci-dessus: une URL de recherche "
+                    "fausse redirige sur l'accueil, en HTTP 200 et page pleine.",
+                ]
             if self.suggested_pattern:
                 lines += [
                     f"Motif deduit de la page elle-meme: {self.suggested_pattern}",
@@ -348,7 +359,12 @@ def diagnose_search(
     save_to: Path | None = None,
 ) -> DiagnosticReport:
     """Check one search URL end to end and say what to fix."""
-    from .structured import extract_jsonld, extract_listing_links, find_item_list
+    from .structured import (
+        declared_search_url,
+        extract_jsonld,
+        extract_listing_links,
+        find_item_list,
+    )
 
     report = DiagnosticReport(url=url, source=source, pattern_used=pattern)
     owned = fetcher is None
@@ -433,6 +449,7 @@ def diagnose_search(
             suggestion, _ = suggest_link_pattern(page.text, url)
             if suggestion and suggestion != pattern:
                 report.suggested_pattern = suggestion
+            report.declared_search = declared_search_url(page.text) or ""
     finally:
         if owned:
             fetcher.close()

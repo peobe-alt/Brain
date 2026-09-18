@@ -451,6 +451,8 @@ def diagnose(
             f"[green]{report.results_listings}[/green] lues sans ouvrir d'annonce "
             f"({report.results_complete} completes)",
         )
+    if report.declared_search:
+        table.add_row("recherche declaree", f"[cyan]{escape(report.declared_search)}[/cyan]")
     if report.saved_to:
         table.add_row("page ecrite", f"[green]{escape(report.saved_to)}[/green]")
     if report.protection:

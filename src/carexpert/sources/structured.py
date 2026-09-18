@@ -313,6 +313,33 @@ def canonical_url(url: str) -> str:
     return urlunparse(parsed._replace(query=urlencode(kept), fragment=""))
 
 
+def declared_search_url(html: str) -> str | None:
+    """The search URL shape a site publishes about itself.
+
+    `schema.org/WebSite` carries a `SearchAction` whose target is how the
+    site tells search engines to query it. It is the same idea as reading
+    `Car` markup instead of CSS classes: when our own template lands on the
+    homepage, this is the site saying, in its own words, what the right one
+    was. Measured on leparking: our template said `/voitures-occasion/`,
+    its SearchAction said `/voiture-occasion/`, and the plural redirected to
+    a 170 KB homepage that HTTP 200 made indistinguishable from a result.
+    """
+    for node in extract_jsonld(html):
+        if "website" not in _types(node):
+            continue
+        actions = node.get("potentialAction")
+        for action in actions if isinstance(actions, list) else [actions]:
+            if not isinstance(action, dict):
+                continue
+            target = action.get("target")
+            if isinstance(target, dict):
+                target = target.get("urlTemplate") or target.get("url")
+            text = _text(target)
+            if text and "{" in text:
+                return text
+    return None
+
+
 def extract_opengraph(html: str) -> dict[str, str]:
     data: dict[str, str] = {}
     for meta in _soup(html).find_all("meta"):

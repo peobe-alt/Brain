@@ -151,6 +151,14 @@ Chacun vient d'un defaut reel, mesure :
    hybride simple. Lue dans l'ordre naturel du tableau des carburants, une
    Yaris hybride sortait en electrique, donc valorisee sur la courbe de
    decote d'une batterie qu'elle n'a pas. Meme famille que l'invariant 12.
+29. **Une URL de recherche fausse ne repond pas par une erreur.** Sur
+   leparking, `/voitures-occasion/` au pluriel redirige sur l'accueil :
+   HTTP 200, 170 Ko, une page pleine de liens, que rien ne distingue d'une
+   recherche sans resultat. Le diagnostic a accuse le motif de lien
+   pendant deux tours. Le site publiait pourtant la bonne forme dans le
+   `SearchAction` de son JSON-LD : `/voiture-occasion/` au singulier. Une
+   source qui ne rend rien se verifie d'abord sur ce que le site declare
+   de lui-meme, avant de corriger quoi que ce soit chez nous.
 
 ## Collecte
 
