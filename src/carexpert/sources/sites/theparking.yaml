@@ -1,0 +1,40 @@
+# theparking.eu - meta-moteur: il n'heberge aucune annonce, il indexe celles
+# des autres sites (leboncoin, AutoScout24, La Centrale, concessionnaires) et
+# renvoie vers la source. Deux consequences avant d'y toucher:
+#
+#   1. une fiche theparking est un resume. Le texte complet et les photos sont
+#      sur l'annonce d'origine, derriere leur lien de redirection: l'expertise
+#      profonde retombe donc sur le site source, avec ses propres protections;
+#   2. leur index EST leur produit. Il est protege par le droit des bases de
+#      donnees, en plus des CGU des sites indexes.
+#
+# La voie propre pour ce site est leur offre professionnelle (statistiques de
+# marche par marque et modele), pas la collecte. Voir docs/02-sources-et-legal.md.
+#
+# Cette entree existe pour une seule raison: pouvoir lancer
+# `carexpert diagnose -s theparking --url "<recherche collee>"` et connaitre la
+# realite technique (robots.txt, rendu JS, schema.org) avant toute decision.
+name: theparking
+label: The Parking (meta-moteur)
+countries: [FR, DE, IT, ES, NL, BE, AT, GB]
+default_country: FR
+base_url: https://www.theparking.eu
+verified: false
+
+# Pas de `search_url`: la forme des URL de recherche n'a pas ete relevee sur le
+# site. Un gabarit invente vaut moins que pas de gabarit, comme un selecteur.
+# Construire la recherche dans l'interface du site et passer --url.
+
+# Motif volontairement large, a corriger. `carexpert diagnose` deduit la vraie
+# forme des URL d'annonce depuis la page et l'affiche sous "motif suggere".
+listing_link_pattern: "/used-cars/[^?#]+\\.html"
+
+max_pages: 2
+request_delay: 5.0
+requires_js: false
+
+selectors: {}
+
+notes: >
+  Meta-moteur, pas une source primaire. A diagnostiquer avant tout usage, et a
+  traiter par un accord de donnees plutot que par la collecte.
