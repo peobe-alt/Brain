@@ -212,3 +212,29 @@ def test_filters_reach_the_url_when_set():
     assert "kmto=160000" in url
     assert "fregfrom=2015" in url
     assert "page=2" in url
+
+
+# --- Ce que le serveur recoit vraiment --------------------------------------
+
+
+def test_a_hashbang_route_is_separated_from_the_url_sent():
+    from carexpert.sources.structured import split_fragment_route
+
+    sent, route = split_fragment_route(
+        "https://www.theparking.eu/#!/used-cars/V70.html"
+        "%3Fid_energie%3D1%26id_motorisation%3D12"
+    )
+    assert sent == "https://www.theparking.eu/"
+    # Decodee: le navigateur percent-encode ce qu'il range derriere le `#`.
+    assert route == "!/used-cars/V70.html?id_energie=1&id_motorisation=12"
+
+
+def test_a_plain_anchor_leaves_the_url_untouched():
+    """`#resultats` ne deplace rien: tout casser dessus serait un faux positif."""
+    from carexpert.sources.structured import split_fragment_route
+
+    url = "https://site.fr/recherche?make=volvo#resultats"
+    assert split_fragment_route(url) == (url, "")
+    assert split_fragment_route("https://site.fr/recherche") == (
+        "https://site.fr/recherche", "",
+    )

@@ -25,6 +25,7 @@ from .structured import (
     extract_jsonld,
     extract_listings_from_search,
     find_vehicle_node,
+    split_fragment_route,
 )
 
 #: Fields without which a listing is useless downstream.
@@ -67,6 +68,10 @@ class DiagnosticReport:
     elapsed_s: float = 0.0
     links_found: int = 0
     pattern_used: str = ""
+    #: Route laissee dans le fragment `#...`, jamais transmise au serveur.
+    fragment_route: str = ""
+    #: URL reellement demandee, une fois le fragment retire.
+    fetched_url: str = ""
     #: Annonces lues directement dans le JSON-LD de la page de resultats.
     results_listings: int = 0
     results_complete: int = 0
@@ -88,6 +93,13 @@ class DiagnosticReport:
             return "interdit", "le robots.txt du site interdit cette URL"
         if self.status >= 400:
             return "echec", f"le site repond HTTP {self.status}"
+        # Avant tout jugement sur le contenu: la page recue est-elle seulement
+        # celle qu'on a demandee? Si la recherche tient dans le fragment, non.
+        if self.fragment_route:
+            return "fragment", (
+                "la recherche tient dans le fragment `#`, qui n'est jamais envoye "
+                f"au serveur: seul {self.fetched_url} a ete demande"
+            )
         # La page de resultats se suffit parfois a elle-meme: elle publie ses
         # annonces en JSON-LD. Dans ce cas l'absence de liens ne prouve rien.
         if self.results_complete:
@@ -135,6 +147,26 @@ class DiagnosticReport:
                     "c'est normal ici, la voie liste ne s'en sert pas."
                 )
             lines.append(f"Passer `verified: true` dans sites/{self.source}.yaml.")
+            return lines
+        if level == "fragment":
+            lines = [
+                f"Filtres restes dans le navigateur: {self.fragment_route}",
+                "Un fragment d'URL n'atteint jamais le serveur (RFC 3986): copiee telle "
+                "quelle, cette recherche ne demande que la page d'accueil du site.",
+                "Ouvrir une annonce depuis cette recherche et copier SON URL: les sites a "
+                "routage `#!` gardent presque toujours des pages d'annonce servies par le "
+                "serveur, pour le referencement.",
+                'Tester cette URL-la: carexpert analyse-url "<URL d\'annonce>"',
+            ]
+            if self.suggested_pattern:
+                lines.append(
+                    "Piste relevee sur la page recue, forme d'URL la plus repetee: "
+                    f"{self.suggested_pattern}"
+                )
+            lines.append(
+                "Sans URL de recherche servie par le serveur, la source reste hors de "
+                "portee en HTTP simple: alertes natives du site, ou acces API/partenaire."
+            )
             return lines
         if level == "js":
             return [
@@ -233,19 +265,24 @@ def diagnose_search(
     from .structured import extract_listing_links
 
     report = DiagnosticReport(url=url, source=source, pattern_used=pattern)
+    # L'URL collee et l'URL demandee peuvent differer: tout ce qui suit `#`
+    # reste dans le navigateur. Le rapport garde les deux, sans quoi il
+    # commenterait une page que personne n'a demandee.
+    fetch_url, report.fragment_route = split_fragment_route(url)
+    report.fetched_url = fetch_url
     owned = fetcher is None
     fetcher = fetcher or PoliteFetcher()
 
     try:
-        report.robots_present = fetcher._robots_for(url) is not None
-        report.robots_allows = fetcher.allowed(url)
-        report.crawl_delay = fetcher.crawl_delay(url)
+        report.robots_present = fetcher._robots_for(fetch_url) is not None
+        report.robots_allows = fetcher.allowed(fetch_url)
+        report.crawl_delay = fetcher.crawl_delay(fetch_url)
         if not report.robots_allows:
             return report
 
         started = time.monotonic()
         try:
-            page = fetcher.get(url, use_cache=False)
+            page = fetcher.get(fetch_url, use_cache=False)
         except RobotsDisallowed:
             report.robots_allows = False
             return report
@@ -258,12 +295,12 @@ def diagnose_search(
         if not page.ok:
             return report
 
-        links = extract_listing_links(page.text, url, pattern)
+        links = extract_listing_links(page.text, fetch_url, pattern)
         report.links_found = len(links)
         report.js_suspected = any(marker in page.text for marker in JS_MARKERS)
 
         # Voie liste: ce que la page de resultats donne sans rien ouvrir.
-        rows = extract_listings_from_search(page.text, base_url=url, source=source)
+        rows = extract_listings_from_search(page.text, base_url=fetch_url, source=source)
         report.results_listings = len(rows)
         missing: Counter[str] = Counter()
         for row in rows:
@@ -277,11 +314,17 @@ def diagnose_search(
             return report
 
         if not links:
-            suggestion, count = suggest_link_pattern(page.text, url)
+            suggestion, count = suggest_link_pattern(page.text, fetch_url)
             if suggestion:
                 report.suggested_pattern = suggestion
-                links = extract_listing_links(page.text, url, suggestion)
+                links = extract_listing_links(page.text, fetch_url, suggestion)
                 report.links_found = len(links)
+
+        # Les annonces d'une page d'accueil n'ont rien a voir avec la recherche
+        # demandee: les ouvrir couterait des requetes pour un echantillon
+        # hors sujet.
+        if report.fragment_route:
+            return report
 
         for link in links[:samples]:
             report.samples.append(_diagnose_listing(fetcher, link, source, selectors))

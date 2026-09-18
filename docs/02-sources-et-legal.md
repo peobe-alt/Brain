@@ -51,6 +51,39 @@ La commande enchaine, au rythme poli du site :
 Elle se termine par un verdict et la liste des corrections a apporter. C'est
 le premier reflexe avant d'ajouter ou de reactiver une source.
 
+## Recherches qui ne quittent jamais le navigateur
+
+Certains sites, TheParking par exemple, rangent toute leur recherche derriere
+un `#` :
+
+```
+https://www.theparking.eu/#!/used-cars/V70.html?id_energie=1&id_motorisation=12
+```
+
+Cette URL ne demande pas ce qu'elle a l'air de demander. Un fragment (tout ce
+qui suit le `#`) n'est **jamais** transmis au serveur : c'est la norme
+(RFC 3986, section 3.5), pas une protection du site. Le modele, l'energie et
+la motorisation restent dans le navigateur, et la requete recue est
+simplement `https://www.theparking.eu/`, la page d'accueil.
+
+Consequence : toute conclusion tiree de la reponse porte sur une page que
+personne n'a demandee. Le diagnostic le dit maintenant en toutes lettres
+(verdict `RECHERCHE RESTEE DANS LE NAVIGATEUR`), affiche l'URL reellement
+envoyee et rend les filtres perdus, decodes. Il ne va pas plus loin : ouvrir
+les annonces de la page d'accueil couterait des requetes pour un echantillon
+hors sujet.
+
+La sortie, quand elle existe, est une URL servie par le serveur. Les
+agregateurs en gardent presque toujours pour le referencement : ouvrir une
+annonce depuis la recherche, copier **son** URL, et repartir de la. Sans
+cela, la source n'est pas collectable en HTTP simple, et c'est le meme
+arbitrage que pour un site rendu en JavaScript (section precedente).
+
+Le meme garde-fou existe cote collecte : `carexpert scan --url "<URL a
+fragment>"` retire le fragment, previent dans les logs et dit quelle URL
+part vraiment, au lieu de parcourir la page d'accueil et d'annoncer
+"0 annonce".
+
 ## Forme des URL d'annonce
 
 Le motif de lien d'une source sert a deux choses : reconnaitre une annonce

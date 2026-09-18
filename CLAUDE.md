@@ -85,6 +85,14 @@ Chacun vient d'un defaut reel, mesure :
    passe profonde appelait une fonction inexistante : aucun test n'allait
    jusque-la, faute de cle API. Tout chemin conditionne par une cle ou un
    reseau doit avoir son test avec un double.
+16. **Ce qui suit `#` n'atteint jamais le serveur.** Un fragment n'est pas
+   transmis (RFC 3986, section 3.5). Les sites a routage `#!` y rangent
+   pourtant la recherche entiere : sur TheParking,
+   `#!/used-cars/V70.html?id_energie=1&id_motorisation=12` ne demande que la
+   page d'accueil. Le diagnostic repondait alors "rendu JavaScript" : vrai
+   pour la page recue, faux pour le probleme, et on partait chercher un
+   navigateur headless pour un probleme d'URL. Le fragment se separe avant
+   toute requete, et ce qu'il emportait se montre a l'utilisateur.
 
 ## Collecte
 

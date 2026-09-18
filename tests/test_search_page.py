@@ -194,3 +194,40 @@ def test_a_list_without_prices_falls_back_to_opening_the_adverts():
     assert len(collected) == 2
     assert all(row.price_eur == 14500 for row in collected)
     assert fetcher.calls[1:] == ["https://site.fr/ad/1", "https://site.fr/ad/2"]
+
+
+# --- Sources dont la recherche reste dans le navigateur ---------------------
+
+
+def test_an_empty_link_pattern_does_not_collect_every_link():
+    """Un motif vide est une regex qui matche tout: `/aide` devient une annonce."""
+    from carexpert.sources.configured import DEFAULT_LINK_PATTERN, link_pattern
+
+    assert link_pattern({"listing_link_pattern": ""}) == DEFAULT_LINK_PATTERN
+    assert link_pattern({}) == DEFAULT_LINK_PATTERN
+    assert link_pattern({"listing_link_pattern": r"/ad/\d+"}) == r"/ad/\d+"
+
+
+def test_a_pasted_hashbang_url_is_stripped_and_flagged(caplog):
+    """Sinon le scan parcourt la page d'accueil et annonce "0 annonce"."""
+    import logging
+
+    fetcher = OnePageFetcher("<html><body>accueil</body></html>")
+    source = ConfiguredSource({"name": "theparking"}, fetcher=fetcher)
+
+    with caplog.at_level(logging.WARNING):
+        list(source.search_url("https://www.theparking.eu/#!/used-cars/V70.html"))
+
+    assert fetcher.calls == ["https://www.theparking.eu/"]
+    assert "`#`" in caplog.text and "/used-cars/V70.html" in caplog.text
+
+
+def test_theparking_declares_no_unverified_search_template():
+    """Un gabarit hashbang rejouerait la page d'accueil a chaque page."""
+    config = load_site_configs()["theparking"]
+
+    assert config["verified"] is False
+    assert config.get("search_url") is None
+    assert config["requires_js"] is True
+    # Absent, pas vide: voir test_an_empty_link_pattern_does_not_collect_every_link.
+    assert "listing_link_pattern" not in config

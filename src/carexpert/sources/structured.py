@@ -15,7 +15,15 @@ import json
 import logging
 import re
 from typing import Any, Iterable
-from urllib.parse import parse_qs, parse_qsl, urlencode, urljoin, urlparse, urlunparse
+from urllib.parse import (
+    parse_qs,
+    parse_qsl,
+    unquote,
+    urlencode,
+    urljoin,
+    urlparse,
+    urlunparse,
+)
 
 from bs4 import BeautifulSoup
 
@@ -305,6 +313,34 @@ def canonical_url(url: str) -> str:
         if key.lower() not in TRACKING_PARAMS
     ]
     return urlunparse(parsed._replace(query=urlencode(kept), fragment=""))
+
+
+def _is_route_fragment(fragment: str) -> bool:
+    """A fragment carrying a route, not a plain in-page anchor.
+
+    `#!/...` is the historic hashbang form, `#/...` its modern variant, and a
+    `=` marks encoded state (`#page=2`). `#resultats` stays an anchor: the
+    search is already in the URL, and flagging it would be a false positive.
+    """
+    return fragment.startswith(("!", "/")) or "=" in fragment
+
+
+def split_fragment_route(url: str) -> tuple[str, str]:
+    """(URL reellement envoyee au serveur, route restee dans le navigateur).
+
+    Un fragment n'est jamais transmis au serveur (RFC 3986, section 3.5).
+    Les sites a routage client y rangent pourtant toute la recherche, modele
+    et filtres compris. Colle tel quel, `.../#!/used-cars/V70.html?...` ne
+    demande donc que la page d'accueil, et toute conclusion tiree de la
+    reponse porte sur une page que personne n'a demandee.
+
+    La route est renvoyee decodee: le navigateur percent-encode le `?` et le
+    `&` qu'il range derriere le `#`, ce qui rend le diagnostic illisible.
+    """
+    parsed = urlparse(url)
+    if not parsed.fragment or not _is_route_fragment(parsed.fragment):
+        return url, ""
+    return urlunparse(parsed._replace(fragment="")), unquote(parsed.fragment)
 
 
 def extract_opengraph(html: str) -> dict[str, str]:

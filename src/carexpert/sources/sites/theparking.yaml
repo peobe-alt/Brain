@@ -1,0 +1,50 @@
+# TheParking - agregateur pan-europeen: il republie les annonces d'autres
+# sites. Utile pour balayer large d'un coup, a manier avec prudence car la
+# meme voiture y apparait sous plusieurs sources (voir invariant 4:
+# deduplication par vehicule).
+name: theparking
+label: TheParking
+countries: [FR, DE, IT, ES, NL, BE]
+default_country: FR
+base_url: https://www.theparking.eu
+verified: false
+
+# PAS DE `search_url` ICI, ET C'EST VOLONTAIRE.
+#
+# La recherche du site vit derriere un routage `#!`. Forme relevee, collee
+# depuis la barre d'adresse:
+#
+#   https://www.theparking.eu/#!/used-cars/V70.html?id_energie=1&id_motorisation=12
+#
+# Tout ce qui suit le `#` est un fragment: la norme (RFC 3986, section 3.5)
+# veut qu'il ne soit jamais transmis au serveur. Le modele, l'energie et la
+# motorisation restent donc dans le navigateur, et une requete HTTP sur cette
+# URL ne demande que `https://www.theparking.eu/`, c'est-a-dire la page
+# d'accueil.
+#
+# Mettre ce gabarit dans `search_url` ferait donc rejouer la page d'accueil a
+# chaque page de chaque recherche, et rapporter "0 annonce" sans une seule
+# erreur. Un champ absent est plus honnete qu'un champ qui ment: tant qu'une
+# URL de recherche servie par le serveur n'a pas ete relevee sur le site, il
+# n'y a rien a templater.
+#
+# Pour la completer: ouvrir une annonce depuis la recherche, copier SON URL
+# (les agregateurs gardent des pages servies par le serveur pour le
+# referencement), puis relever la forme de l'URL de recherche correspondante.
+
+# `listing_link_pattern` est absent, pas vide: un motif vide est une
+# expression reguliere qui matche tout, donc `/aide` et `/cgu` collectes
+# comme des annonces. Absent, le defaut generique (`/\d{5,}`) s'applique, et
+# le diagnostic proposera un motif deduit de la page reelle.
+
+max_pages: 2
+request_delay: 4.0
+requires_js: true
+selectors: {}
+
+notes: >
+  Agregateur: la meme voiture y apparait souvent plusieurs fois, via
+  plusieurs sites d'origine. Recherche rendue cote client derriere un
+  routage `#!`, donc inexploitable en HTTP simple tant qu'une URL servie par
+  le serveur n'a pas ete relevee. Commencer par:
+  carexpert diagnose -s theparking --url "<URL collee>".

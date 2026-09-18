@@ -31,6 +31,22 @@ Les gabarits d'URL changent. Plutot que de les deviner :
 L'extraction, elle, ne depend pas de l'URL : elle lit le balisage
 schema.org que les sites publient pour le referencement.
 
+## Deux pieges a l'ecriture d'un fichier
+
+**Un champ absent vaut mieux qu'un champ vide.** `listing_link_pattern: ""`
+est une expression reguliere qui matche tout : `/aide` et `/cgu` sont alors
+collectes comme des annonces, puis ouverts un par un. Omettre le champ le
+fait retomber sur le defaut generique ; le diagnostic proposera ensuite un
+motif deduit de la page reelle.
+
+**Un gabarit a `#` ne demande que la page d'accueil.** Un fragment n'est
+jamais transmis au serveur (RFC 3986, section 3.5). Sur un site a routage
+`#!`, comme `theparking`, la recherche entiere vit derriere le `#` : mise
+dans `search_url`, elle rejouerait la page d'accueil a chaque page de chaque
+recherche, sans une seule erreur. Tant qu'une URL de recherche servie par le
+serveur n'a pas ete relevee, laisser `search_url` absent et le dire dans
+`notes`.
+
 ## Avant d'activer une source
 
 Lire `docs/02-sources-et-legal.md`. En resume : respecter le `robots.txt`,

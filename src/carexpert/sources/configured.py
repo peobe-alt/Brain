@@ -25,11 +25,30 @@ from ..normalize import enrich
 from ..schemas import ListingData, SearchQuery
 from .base import SourceAdapter, SourceInfo
 from .fetcher import FetchError, PoliteFetcher, RobotsDisallowed
-from .structured import extract_from_page, extract_listing_links, extract_listings_from_search
+from .structured import (
+    extract_from_page,
+    extract_listing_links,
+    extract_listings_from_search,
+    split_fragment_route,
+)
 
 log = logging.getLogger(__name__)
 
 SITES_DIR = Path(__file__).parent / "sites"
+
+#: Motif de lien applique quand la source n'en declare pas.
+DEFAULT_LINK_PATTERN = r"/\d{5,}"
+
+
+def link_pattern(config: dict[str, Any]) -> str:
+    """The source's advert-link pattern, never empty.
+
+    An empty regex matches every link: a site file carrying
+    `listing_link_pattern: ""` would harvest `/aide` and `/cgu` as adverts,
+    then fetch them one by one. Absent and empty both mean "not established
+    yet", so both fall back to the generic default.
+    """
+    return config.get("listing_link_pattern") or DEFAULT_LINK_PATTERN
 
 
 class ConfiguredSource(SourceAdapter):
@@ -113,6 +132,16 @@ class ConfiguredSource(SourceAdapter):
         full photo set: enough to value and rank, not enough for the expert
         pass, which re-opens the shortlist through `fetch_detail`.
         """
+        url, route = split_fragment_route(url)
+        if route:
+            # Sans ce message, le scan rapporte "0 annonce" sur la page
+            # d'accueil du site et laisse croire que la recherche est vide.
+            log.warning(
+                "%s: les filtres de cette URL sont derriere `#` (%s) et ne sont pas "
+                "envoyes au serveur. Seul %s sera demande. Diagnostiquer avec: "
+                'carexpert diagnose -s %s --url "..."',
+                self.name, route, url, self.name,
+            )
         try:
             page = self._fetcher.get(url)
         except (FetchError, RobotsDisallowed) as exc:
@@ -141,8 +170,7 @@ class ConfiguredSource(SourceAdapter):
                     self.name, len(rows),
                 )
 
-        pattern = self.config.get("listing_link_pattern", r"/\d{5,}")
-        links = extract_listing_links(page.text, url, pattern)
+        links = extract_listing_links(page.text, url, link_pattern(self.config))
         if not links:
             log.warning(
                 "%s: aucune annonce trouvee sur %s. Le site rend probablement ses "

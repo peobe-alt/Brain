@@ -341,6 +341,7 @@ VERDICT_DIAG = {
     "extraction": ("yellow", "EXTRACTION INCOMPLETE"),
     "motif": ("yellow", "MOTIF DE LIEN A CORRIGER"),
     "js": ("red", "SITE RENDU EN JAVASCRIPT"),
+    "fragment": ("red", "RECHERCHE RESTEE DANS LE NAVIGATEUR"),
     "interdit": ("red", "INTERDIT PAR LE ROBOTS.TXT"),
     "echec": ("red", "SITE INJOIGNABLE"),
 }
@@ -358,13 +359,16 @@ def diagnose(
     """Verifier qu'une source fonctionne vraiment, et dire quoi corriger sinon."""
     _setup_logging(verbose)
     from .sources import get_source
-    from .sources.configured import ConfiguredSource, load_site_configs
+    from .sources.configured import ConfiguredSource, link_pattern, load_site_configs
     from .sources.diagnose import diagnose_search
 
     configs = load_site_configs()
     config = configs.get(source, {})
     if not config:
-        console.print(f"[red]Source '{source}' inconnue.[/red] Voir : carexpert sources")
+        console.print(
+            f"[red]Source '{source}' inconnue.[/red] Disponibles : "
+            + ", ".join(sorted(configs))
+        )
         raise typer.Exit(1)
 
     target = url
@@ -383,7 +387,7 @@ def diagnose(
         report = diagnose_search(
             target,
             source=source,
-            pattern=config.get("listing_link_pattern", r"/\d{5,}"),
+            pattern=link_pattern(config),
             selectors=config.get("selectors"),
             samples=samples,
         )
@@ -399,6 +403,9 @@ def diagnose(
     table.add_row("autorise", "[green]oui[/green]" if report.robots_allows else "[red]non[/red]")
     if report.crawl_delay:
         table.add_row("delai impose", f"{report.crawl_delay:.1f} s")
+    if report.fragment_route:
+        table.add_row("URL demandee", report.fetched_url)
+        table.add_row("reste dans le navigateur", f"[red]#{report.fragment_route}[/red]")
     table.add_row("reponse", f"HTTP {report.status} - {report.page_bytes} octets "
                              f"en {report.elapsed_s:.1f} s")
     table.add_row("motif de lien", report.pattern_used)

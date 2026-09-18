@@ -156,3 +156,81 @@ def test_a_results_page_without_links_but_with_data_is_usable():
     assert len(fetcher.calls) == 1
     actions = " ".join(report.actions())
     assert "JavaScript" in actions and "verified: true" in actions
+
+
+# --- Recherches qui ne quittent jamais le navigateur ------------------------
+#
+# TheParking range toute sa recherche derriere un `#!`. Un fragment n'est pas
+# transmis au serveur (RFC 3986, section 3.5): l'URL collee demande la page
+# d'accueil, et le diagnostic concluait "site rendu en JavaScript", ce qui
+# envoyait chercher un navigateur headless pour un probleme d'URL.
+
+HASHBANG_URL = (
+    "https://www.theparking.eu/#!/used-cars/V70.html"
+    "%3Fid_energie%3D1%26id_motorisation%3D12"
+)
+
+HOME_PAGE = """<html><body><div id="__next"></div>
+<script id="__NEXT_DATA__" type="application/json">{"props":{}}</script>
+<a href="/aide">aide</a></body></html>"""
+
+
+def test_a_search_left_in_the_fragment_is_named_as_such():
+    fetcher = FakeFetcher({"theparking.eu": HOME_PAGE})
+    report = diagnose_search(HASHBANG_URL, source="theparking", fetcher=fetcher)
+
+    # Le piege: les marqueurs JavaScript sont bien la, et pourtant ce n'est
+    # pas le diagnostic. Le serveur n'a jamais vu la recherche.
+    assert report.js_suspected
+    assert report.verdict()[0] == "fragment"
+    assert report.fragment_route == "!/used-cars/V70.html?id_energie=1&id_motorisation=12"
+    assert report.fetched_url == "https://www.theparking.eu/"
+
+
+def test_the_fragment_never_reaches_the_fetcher():
+    fetcher = FakeFetcher({"theparking.eu": HOME_PAGE})
+    diagnose_search(HASHBANG_URL, source="theparking", fetcher=fetcher)
+
+    assert fetcher.calls == ["https://www.theparking.eu/"]
+
+
+def test_the_dropped_filters_are_shown_back_decoded():
+    """Le navigateur percent-encode le `?` derriere le `#`: illisible brut."""
+    fetcher = FakeFetcher({"theparking.eu": HOME_PAGE})
+    report = diagnose_search(HASHBANG_URL, source="theparking", fetcher=fetcher)
+
+    actions = " ".join(report.actions())
+    assert "id_energie=1" in actions and "id_motorisation=12" in actions
+    assert "%3F" not in actions
+
+
+def test_homepage_adverts_are_never_passed_off_as_the_search():
+    """Le pire resultat possible: rendre les annonces d'une autre page.
+
+    La page d'accueil d'un agregateur publie ses vedettes en JSON-LD. Sans
+    ce cas, le diagnostic annonce "source exploitable, N annonces completes"
+    pour une recherche que le serveur n'a jamais recue.
+    """
+    from pathlib import Path
+
+    html = (Path(__file__).parent / "fixtures" / "autoscout24_search.html").read_text(
+        encoding="utf-8"
+    )
+    fetcher = FakeFetcher({"theparking.eu": html})
+    report = diagnose_search(HASHBANG_URL, source="theparking", fetcher=fetcher)
+
+    assert report.verdict()[0] == "fragment"
+    # Une seule requete: aucune annonce hors sujet n'a ete ouverte.
+    assert len(fetcher.calls) == 1
+    assert report.samples == []
+
+
+def test_a_plain_anchor_is_not_a_route():
+    """`#resultats` ancre une position dans la page: la recherche est dans l'URL."""
+    fetcher = FakeFetcher({"/recherche": SEARCH_OK, "/annonce/": LISTING_OK})
+    report = diagnose_search("https://site.fr/recherche?make=volvo#resultats",
+                             source="test", pattern=r"/annonce/[\w-]+-\d+",
+                             fetcher=fetcher)
+
+    assert report.fragment_route == ""
+    assert report.verdict()[0] == "ok"
