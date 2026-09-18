@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% set nav = "recherche" %}
+{% block title %}Scan en cours - CarExpert{% endblock %}
+
+{% block content %}
+<div class="block scanpage" data-job="{{ job.id }}">
+  <h2 id="job-label">{{ job.label[:110] }}</h2>
+
+  <div class="progress"><div class="fill" id="job-fill" style="width: {{ job.percent }}%"></div></div>
+
+  <p class="status">
+    <span class="dot {{ job.status | replace(' ', '-') }}" id="job-dot"></span>
+    <b id="job-message">{{ job.message }}</b>
+    <span class="help small" id="job-time">{{ job.duration_s }} s</span>
+  </p>
+
+  <p class="help" id="job-summary">{{ job.summary }}</p>
+
+  <ul class="errors" id="job-errors">
+    {% for error in job.errors %}<li>{{ error }}</li>{% endfor %}
+  </ul>
+
+  <div class="actions" id="job-actions" {{ 'hidden' if not job.done }}>
+    <a class="button primary" href="/">Voir les bonnes affaires</a>
+    <a class="button" href="/recherche">Lancer une autre recherche</a>
+  </div>
+
+  <p class="help small" id="job-wait" {{ 'hidden' if job.done }}>
+    Vous pouvez fermer cette page : le scan continue. Revenez quand vous voulez.
+  </p>
+</div>
+
+<script>
+(function () {
+  var page = document.querySelector('.scanpage');
+  if (!page) return;
+  var id = page.dataset.job;
+
+  function refresh() {
+    fetch('/api/scan/' + id)
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (job) {
+        if (!job) return;
+        document.getElementById('job-fill').style.width = job.percent + '%';
+        document.getElementById('job-message').textContent = job.message;
+        document.getElementById('job-time').textContent = job.duration_s + ' s';
+        document.getElementById('job-summary').textContent = job.summary;
+        document.getElementById('job-dot').className =
+          'dot ' + job.status.replace(/ /g, '-');
+
+        var errors = document.getElementById('job-errors');
+        errors.innerHTML = '';
+        job.errors.forEach(function (message) {
+          var item = document.createElement('li');
+          item.textContent = message;
+          errors.appendChild(item);
+        });
+
+        if (job.done) {
+          document.getElementById('job-actions').hidden = false;
+          document.getElementById('job-wait').hidden = true;
+          document.title = 'Scan termine - CarExpert';
+        } else {
+          setTimeout(refresh, 1500);
+        }
+      })
+      .catch(function () { setTimeout(refresh, 4000); });
+  }
+
+  if (!{{ 'true' if job.done else 'false' }}) refresh();
+})();
+</script>
+{% endblock %}

@@ -8,16 +8,20 @@ plugged on top later without touching the pipeline.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Form, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 
 from ..db import Analysis, Listing, Valuation, Watchlist, init_db, session_scope
+from ..schemas import SearchQuery
+from ..sources import available_sources, source_for_url
+from .jobs import runner
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
@@ -218,3 +222,196 @@ def health():
     with session_scope() as session:
         total = session.execute(select(func.count(Listing.id))).scalar_one()
     return {"status": "ok", "listings": total}
+
+
+# --- Lancer une recherche -------------------------------------------------
+
+
+def _query_from_form(
+    make: str | None, model: str | None, price_max: int | None,
+    year_min: int | None, km_max: int | None, country: str, limit: int,
+) -> SearchQuery:
+    return SearchQuery(
+        make=(make or "").strip() or None,
+        model=(model or "").strip() or None,
+        price_max=price_max or None,
+        year_min=year_min or None,
+        km_max=km_max or None,
+        countries=[country] if country else ["FR"],
+        limit=limit,
+    )
+
+
+@app.get("/recherche", response_class=HTMLResponse)
+def new_search(request: Request, erreur: str = ""):
+    sources = {name: info for name, info in available_sources().items() if name != "demo"}
+    return templates.TemplateResponse(
+        request,
+        "search.html",
+        {
+            "sources": sources,
+            "erreur": erreur,
+            "running": runner.running(),
+            "recent": runner.recent(6),
+        },
+    )
+
+
+@app.post("/recherche")
+def start_search(
+    url: str = Form(""),
+    make: str = Form(""),
+    model: str = Form(""),
+    source: str = Form(""),
+    country: str = Form("FR"),
+    price_max: int | None = Form(None),
+    year_min: int | None = Form(None),
+    km_max: int | None = Form(None),
+    limit: int = Form(500),
+    deep: int = Form(0),
+    save_as: str = Form(""),
+):
+    """Start a scan from the browser, either from a pasted URL or criteria."""
+    url = (url or "").strip()
+    query = _query_from_form(make, model, price_max, year_min, km_max, country, limit)
+
+    if url:
+        if not url.startswith(("http://", "https://")):
+            return _search_error("Cette adresse ne ressemble pas a un lien. "
+                                 "Collez l'adresse complete, celle qui commence par https://")
+        guessed = source_for_url(url)
+        if guessed is None:
+            known = ", ".join(sorted(n for n in available_sources() if n != "demo"))
+            return _search_error(f"Ce site n'est pas encore connu. Sites disponibles : {known}.")
+        sources = [guessed]
+        label = f"{guessed} : {url}"
+    else:
+        if not (query.make or query.model):
+            return _search_error("Indiquez au moins une marque, ou collez l'adresse "
+                                 "d'une recherche faite sur le site.")
+        sources = [source] if source else [
+            name for name in available_sources() if name != "demo"
+        ]
+        label = " ".join(x for x in (query.make, query.model) if x) or "Recherche"
+
+    job, problem = runner.start(
+        label=label, sources=sources, query=query,
+        url=url or None, deep=max(0, deep),
+    )
+    if job is None:
+        return _search_error(problem)
+
+    if save_as.strip():
+        _save_watchlist(save_as.strip(), query, sources, url or None)
+
+    return RedirectResponse(f"/scan/{job.id}", status_code=303)
+
+
+def _search_error(message: str) -> RedirectResponse:
+    from urllib.parse import quote
+
+    return RedirectResponse(f"/recherche?erreur={quote(message)}", status_code=303)
+
+
+def _save_watchlist(name: str, query: SearchQuery, sources: list[str], url: str | None) -> None:
+    with session_scope() as session:
+        existing = session.execute(
+            select(Watchlist).where(Watchlist.name == name)
+        ).scalar_one_or_none()
+        payload = query.model_dump(mode="json")
+        if existing:
+            existing.query = payload
+            existing.sources = sources
+            existing.search_url = url
+        else:
+            session.add(Watchlist(name=name, query=payload, sources=sources,
+                                  search_url=url, channels=["console"]))
+
+
+@app.get("/scan/{job_id}", response_class=HTMLResponse)
+def scan_progress(request: Request, job_id: str):
+    job = runner.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="scan introuvable")
+    return templates.TemplateResponse(request, "scan.html", {"job": job.as_dict()})
+
+
+@app.get("/api/scan/{job_id}")
+def api_scan(job_id: str):
+    job = runner.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="scan introuvable")
+    return job.as_dict()
+
+
+# --- Veilles --------------------------------------------------------------
+
+
+@app.get("/veilles", response_class=HTMLResponse)
+def watchlists(request: Request, erreur: str = ""):
+    with session_scope() as session:
+        rows = list(session.execute(
+            select(Watchlist).order_by(Watchlist.created_at.desc())
+        ).scalars().all())
+        items = [
+            {
+                "id": w.id,
+                "name": w.name,
+                "query": w.query,
+                "search_url": w.search_url,
+                "sources": w.sources,
+                "min_score": w.min_score,
+                "active": w.active,
+                "last_run_at": w.last_run_at,
+                "criteria": _criteria_text(w),
+            }
+            for w in rows
+        ]
+    return templates.TemplateResponse(
+        request,
+        "watchlists.html",
+        {"watchlists": items, "erreur": erreur, "running": runner.running()},
+    )
+
+
+def _criteria_text(w: Watchlist) -> str:
+    if w.search_url:
+        return w.search_url
+    query = w.query or {}
+    bits = [str(query.get(key)) for key in ("make", "model") if query.get(key)]
+    if query.get("price_max"):
+        bits.append(f"jusqu'a {query['price_max']} EUR")
+    if query.get("year_min"):
+        bits.append(f"a partir de {query['year_min']}")
+    if query.get("km_max"):
+        bits.append(f"moins de {query['km_max']} km")
+    return " ".join(bits) or "tous criteres"
+
+
+@app.post("/veilles/{watchlist_id}/lancer")
+def run_watchlist(watchlist_id: int):
+    from urllib.parse import quote
+
+    with session_scope() as session:
+        w = session.get(Watchlist, watchlist_id)
+        if w is None:
+            raise HTTPException(status_code=404, detail="veille introuvable")
+        name, url, sources = w.name, w.search_url, list(w.sources or [])
+        query = SearchQuery(**(w.query or {}))
+        w.last_run_at = datetime.utcnow()
+
+    if not sources:
+        sources = [n for n in available_sources() if n != "demo"]
+    job, problem = runner.start(label=name, sources=sources, query=query, url=url)
+    if job is None:
+        return RedirectResponse(f"/veilles?erreur={quote(problem)}", status_code=303)
+    return RedirectResponse(f"/scan/{job.id}", status_code=303)
+
+
+@app.post("/veilles/{watchlist_id}/supprimer")
+def delete_watchlist(watchlist_id: int):
+    with session_scope() as session:
+        w = session.get(Watchlist, watchlist_id)
+        if w is not None:
+            session.delete(w)
+    return RedirectResponse("/veilles", status_code=303)

@@ -565,13 +565,64 @@ def watch_run(
 def serve(
     host: str = typer.Option("127.0.0.1", "--host"),
     port: int = typer.Option(8000, "--port"),
+    open_browser: bool = typer.Option(True, "--open/--no-open",
+                                      help="Ouvrir le navigateur automatiquement."),
 ) -> None:
     """Lancer le tableau de bord web."""
+    import threading
+    import time
+    import webbrowser
+
     import uvicorn
 
     init_db()
-    console.print(f"[green]Tableau de bord[/green] : http://{host}:{port}")
-    uvicorn.run("carexpert.api.app:app", host=host, port=port, log_level="warning")
+    port = _free_port(host, port)
+    url = f"http://{host}:{port}"
+
+    console.print()
+    console.print(f"  [bold green]CarExpert est ouvert[/bold green] : [bold]{url}[/bold]")
+    console.print("  [dim]Laissez cette fenetre ouverte tant que vous l'utilisez.[/dim]")
+    console.print("  [dim]Pour arreter : Ctrl+C, ou fermez simplement la fenetre.[/dim]")
+    console.print()
+
+    if open_browser:
+        def _open() -> None:
+            # Le serveur met une fraction de seconde a accepter les connexions;
+            # ouvrir trop tot affiche une page d'erreur a l'utilisateur.
+            time.sleep(1.2)
+            try:
+                webbrowser.open(url)
+            except Exception:  # pragma: no cover - pas de navigateur disponible
+                pass
+
+        threading.Thread(target=_open, daemon=True).start()
+
+    try:
+        uvicorn.run("carexpert.api.app:app", host=host, port=port, log_level="warning")
+    except KeyboardInterrupt:  # pragma: no cover - sortie normale
+        console.print("\n  [dim]CarExpert est arrete. A bientot.[/dim]")
+
+
+def _free_port(host: str, wanted: int, tries: int = 20) -> int:
+    """The wanted port, or the next free one.
+
+    "Address already in use" is a dead end for someone who does not read
+    tracebacks, and the usual cause is a second window of this same app.
+    """
+    import socket
+
+    for offset in range(tries):
+        candidate = wanted + offset
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                probe.bind((host, candidate))
+            except OSError:
+                continue
+        if offset:
+            console.print(f"  [dim]Le port {wanted} est occupe, j'utilise {candidate}.[/dim]")
+        return candidate
+    return wanted
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -179,6 +179,10 @@ class Watchlist(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(80), unique=True)
     query: Mapped[dict] = mapped_column(JSON)
+    #: L'URL de recherche collee depuis le site, quand la veille vient de la.
+    #: Elle vit dans sa propre colonne plutot que dans `query`, qui est
+    #: desserialise en `SearchQuery` et refuserait une cle inconnue.
+    search_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     sources: Mapped[list] = mapped_column(JSON, default=list)
     min_score: Mapped[int] = mapped_column(Integer, default=75)
     channels: Mapped[list] = mapped_column(JSON, default=lambda: ["console"])
@@ -222,6 +226,7 @@ def get_engine():
 #: une base deja constituee casse au premier scan qui ecrit le champ.
 LATE_COLUMNS: dict[str, dict[str, str]] = {
     "listings": {"postcode": "VARCHAR(12)"},
+    "watchlists": {"search_url": "TEXT"},
 }
 
 

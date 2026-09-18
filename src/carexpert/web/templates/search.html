@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% set nav = "recherche" %}
+{% block title %}Nouvelle recherche - CarExpert{% endblock %}
+
+{% block content %}
+{% if erreur %}
+<p class="notice bad">{{ erreur }}</p>
+{% endif %}
+
+{% if running %}
+<p class="notice warn">
+  Un scan est en cours : <b>{{ running.label }}</b>.
+  <a href="/scan/{{ running.id }}">Voir ou il en est</a>.
+</p>
+{% endif %}
+
+<form method="post" action="/recherche" class="block">
+  <h2>Coller une recherche</h2>
+  <p class="help">
+    Faites votre recherche sur le site du vendeur comme d'habitude, avec ses
+    filtres. Puis copiez l'adresse dans la barre du navigateur et collez-la
+    ici. C'est la methode la plus sure : vos filtres sont respectes a la
+    lettre.
+  </p>
+  <input type="url" name="url" class="big"
+         placeholder="https://www.autoscout24.fr/lst/volkswagen/golf-tous?cy=F"
+         autocomplete="off" spellcheck="false">
+  <p class="help small">
+    Sites reconnus :
+    {% for name, info in sources.items() %}<code>{{ info.label }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+  </p>
+
+  <div class="sep"><span>ou decrire ce que vous cherchez</span></div>
+
+  <div class="fields">
+    <label>Marque
+      <input type="text" name="make" placeholder="Volkswagen" autocomplete="off">
+    </label>
+    <label>Modele
+      <input type="text" name="model" placeholder="Golf" autocomplete="off">
+    </label>
+    <label>Pays
+      <select name="country">
+        <option value="FR">France</option>
+        <option value="DE">Allemagne</option>
+        <option value="BE">Belgique</option>
+        <option value="IT">Italie</option>
+        <option value="ES">Espagne</option>
+        <option value="NL">Pays-Bas</option>
+        <option value="LU">Luxembourg</option>
+        <option value="AT">Autriche</option>
+      </select>
+    </label>
+    <label>Prix maximum
+      <input type="number" name="price_max" placeholder="15000" min="0" step="500">
+    </label>
+    <label>Annee minimum
+      <input type="number" name="year_min" placeholder="2015" min="1950" max="2030">
+    </label>
+    <label>Kilometrage maximum
+      <input type="number" name="km_max" placeholder="150000" min="0" step="5000">
+    </label>
+  </div>
+
+  <details class="more">
+    <summary>Reglages avances</summary>
+    <div class="fields">
+      <label>Annonces a collecter au plus
+        <input type="number" name="limit" value="500" min="20" max="5000" step="20">
+      </label>
+      <label>Expertises approfondies
+        <input type="number" name="deep" value="0" min="0" max="25">
+        <small>Analyse des photos et du texte par Claude sur les meilleures.
+          Necessite une cle API, et chaque expertise a un cout.</small>
+      </label>
+      <label>Enregistrer comme veille
+        <input type="text" name="save_as" placeholder="Golf sous 12 000 EUR" autocomplete="off">
+        <small>La recherche sera relancable en un clic depuis "Mes veilles".</small>
+      </label>
+    </div>
+  </details>
+
+  <div class="actions">
+    <button type="submit" class="primary" {{ 'disabled' if running }}>Lancer la recherche</button>
+    <span class="help small">Comptez quelques minutes : le site est interroge
+      lentement, une page toutes les deux secondes et demie.</span>
+  </div>
+</form>
+
+{% if recent %}
+<h2 class="section">Scans recents</h2>
+<ul class="joblist">
+  {% for job in recent %}
+  <li>
+    <a href="/scan/{{ job.id }}">
+      <span class="dot {{ job.status | replace(' ', '-') }}"></span>
+      <b>{{ job.label[:70] }}</b>
+      <span class="help small">{{ job.summary or job.message }}</span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

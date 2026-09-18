@@ -10,9 +10,16 @@
 <body>
   <header class="site">
     <div class="wrap">
-      <div class="brand">
-        <h1><a href="/">CarExpert</a></h1>
-        <span>l'expert automobile qui lit les annonces a votre place</span>
+      <div class="topbar">
+        <div class="brand">
+          <h1><a href="/">CarExpert</a></h1>
+          <span>l'expert automobile qui lit les annonces a votre place</span>
+        </div>
+        <nav class="mainnav">
+          <a href="/" class="{{ 'on' if nav == 'deals' }}">Bonnes affaires</a>
+          <a href="/veilles" class="{{ 'on' if nav == 'veilles' }}">Mes veilles</a>
+          <a href="/recherche" class="cta {{ 'on' if nav == 'recherche' }}">Nouvelle recherche</a>
+        </nav>
       </div>
       {% block header %}{% endblock %}
     </div>

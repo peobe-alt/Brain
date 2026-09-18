@@ -1,0 +1,41 @@
+CarExpert
+=========
+
+POUR OUVRIR L'OUTIL
+
+  Sur Mac     : double-cliquez sur  CarExpert.command
+  Sur Windows : double-cliquez sur  CarExpert.bat
+
+Une fenetre noire s'ouvre, puis votre navigateur affiche CarExpert.
+Laissez la fenetre noire ouverte tant que vous utilisez l'outil.
+Pour arreter, fermez-la.
+
+La toute premiere fois, l'installation prend environ une minute.
+
+
+COMMENT S'EN SERVIR
+
+  1. Cliquez sur "Nouvelle recherche".
+  2. Allez sur AutoScout24, faites votre recherche avec leurs filtres.
+  3. Copiez l'adresse dans la barre du navigateur, collez-la dans CarExpert.
+  4. Cliquez sur "Lancer la recherche".
+
+Comptez quelques minutes: le site est interroge lentement, une page toutes
+les deux secondes et demie, pour ne pas le surcharger.
+
+Donnez un nom dans "Enregistrer comme veille" et la recherche devient
+relancable d'un clic depuis l'onglet "Mes veilles".
+
+
+SI QUELQUE CHOSE NE VA PAS
+
+  "Python n'est pas installe"
+      Installez-le depuis https://www.python.org/downloads/
+      Sur Windows, cochez "Add Python to PATH" pendant l'installation.
+
+  La page ne s'ouvre pas toute seule
+      Ouvrez votre navigateur et tapez  localhost:8000
+
+  "Un scan est deja en cours"
+      Normal: un seul scan a la fois, pour ne pas surcharger les sites.
+      Attendez qu'il se termine.

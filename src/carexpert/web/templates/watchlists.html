@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% set nav = "veilles" %}
+{% block title %}Mes veilles - CarExpert{% endblock %}
+
+{% block content %}
+{% if erreur %}
+<p class="notice bad">{{ erreur }}</p>
+{% endif %}
+
+{% if running %}
+<p class="notice warn">
+  Un scan est en cours : <b>{{ running.label }}</b>.
+  <a href="/scan/{{ running.id }}">Voir ou il en est</a>.
+</p>
+{% endif %}
+
+<h2 class="section">Mes veilles</h2>
+<p class="help">
+  Une veille est une recherche enregistree. Relancez-la quand vous voulez :
+  seules les annonces nouvelles ou dont le prix a bouge sont reevaluees, donc
+  c'est rapide.
+</p>
+
+{% if not watchlists %}
+<div class="block emptybox">
+  <p>Aucune veille pour l'instant.</p>
+  <p class="help">
+    Lancez une recherche et cochez "Enregistrer comme veille" pour pouvoir la
+    rejouer d'un clic.
+  </p>
+  <a class="button primary" href="/recherche">Nouvelle recherche</a>
+</div>
+{% else %}
+<ul class="watchlist">
+  {% for w in watchlists %}
+  <li class="block wl-row">
+    <div class="who">
+      <b>{{ w.name }}</b>
+      <span class="help small">{{ w.criteria[:110] }}</span>
+      <span class="help small">
+        alerte au-dessus de {{ w.min_score }}/100
+        {% if w.sources %} &middot; {{ w.sources | join(', ') }}{% endif %}
+        {% if w.last_run_at %} &middot; dernier passage le
+          {{ w.last_run_at.strftime('%d/%m a %Hh%M') }}{% else %} &middot; jamais lancee{% endif %}
+      </span>
+    </div>
+    <div class="row-actions">
+      <form method="post" action="/veilles/{{ w.id }}/lancer">
+        <button type="submit" class="primary" {{ 'disabled' if running }}>Relancer</button>
+      </form>
+      <form method="post" action="/veilles/{{ w.id }}/supprimer"
+            onsubmit="return confirm('Supprimer la veille {{ w.name }} ?');">
+        <button type="submit" class="ghost">Supprimer</button>
+      </form>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

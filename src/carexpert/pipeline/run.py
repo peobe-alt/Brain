@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
@@ -83,6 +83,15 @@ class ScanReport:
         return ", ".join(parts)
 
 
+#: A scan takes minutes. Anything driving it from a screen needs to say what
+#: it is doing, or it looks broken.
+Progress = Callable[[str, int], None]
+
+
+def _silent(_message: str, _percent: int) -> None:
+    return
+
+
 def scan(
     session: Session,
     *,
@@ -92,6 +101,7 @@ def scan(
     notify: bool = False,
     search_url: str | None = None,
     revalue_all: bool = False,
+    on_progress: Progress | None = None,
 ) -> ScanReport:
     """Run one full pass and return what it found.
 
@@ -100,6 +110,7 @@ def scan(
     whole base through, which is what you want after changing the valuation
     curves.
     """
+    say = on_progress or _silent
     report = ScanReport()
 
     # Les adaptateurs restent ouverts jusqu'a la fin: la passe de detail les
@@ -114,10 +125,12 @@ def scan(
     try:
         for name, adapter in adapters.items():
             try:
+                say(f"Collecte des annonces sur {name}", 5)
                 if search_url is not None and hasattr(adapter, "search_url"):
                     listings = list(adapter.search_url(search_url, limit=query.limit))
                 else:
                     listings = list(adapter.search(query))
+                say(f"{len(listings)} annonces recuperees, enregistrement", 35)
                 report.collected[name] = ingest(session, listings)
                 log.info("%s: %s", name, report.collected[name].summary())
             except Exception as exc:  # one broken source must not kill the scan
@@ -126,7 +139,7 @@ def scan(
 
         session.flush()
         _run_passes(session, report, adapters, query=query, deep=deep, notify=notify,
-                    revalue_all=revalue_all)
+                    revalue_all=revalue_all, say=say)
     finally:
         for adapter in adapters.values():
             adapter.close()
@@ -142,6 +155,7 @@ def _run_passes(
     deep: int,
     notify: bool,
     revalue_all: bool,
+    say: Progress = _silent,
 ) -> None:
 
     # --- Wide pass ---------------------------------------------------------
@@ -150,6 +164,7 @@ def _run_passes(
         touched |= stats.touched_ids
     candidate_ids = _candidate_ids(session, query, touched=touched, revalue_all=revalue_all)
     report.skipped_fresh = _candidate_count(session, query) - len(candidate_ids)
+    say(f"Estimation du prix de marche de {len(candidate_ids)} annonces", 45)
 
     batch_size = get_settings().valuation_batch_size
     scored: list[tuple[Listing, Valuation, ExpertReport, DealScore]] = []
@@ -176,6 +191,7 @@ def _run_passes(
     # le descriptif. Or c'est dans le descriptif que se trouvent les pieges
     # ("moteur a revoir", "vendu sans controle technique"). On rouvre donc
     # les meilleures annonces du tour, et elles seules.
+    say("Ouverture des meilleures annonces pour en lire le descriptif", 70)
     report.detailed = _detail_pass(
         session, adapters, scored, limit=max(deep, get_settings().detail_top)
     )
@@ -184,6 +200,7 @@ def _run_passes(
 
     # --- Deep pass ---------------------------------------------------------
     if deep > 0:
+        say(f"Expertise approfondie des {deep} meilleures annonces", 85)
         analyst = ExpertAnalyst()
         for row, valuation, _, _ in scored[:deep]:
             listing = from_row(row)
@@ -222,8 +239,10 @@ def _run_passes(
         for row, valuation, _, score in scored[:20]
     ]
 
+    say("Verification des veilles", 96)
     if notify:
         report.alerts_sent = dispatch_alerts(session)
+    say("Termine", 100)
 
 
 def _detail_pass(

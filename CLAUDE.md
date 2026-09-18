@@ -116,6 +116,16 @@ Chacun vient d'un defaut reel, mesure :
    voiture chargeait 400 lignes entieres, donc les photos et la charge brute
    de chaque comparable, deserialisees depuis JSON puis jetees : 1 200
    `json.loads` par estimation, 31 ms au lieu de 8.
+23. **Une classe CSS ne se redefinit pas plus bas dans la feuille.** Les
+   pages ajoutees reutilisaient `.card`, `.panel` et `.bar`, deja portees par
+   la grille des affaires et la fiche d'annonce : le titre de la recherche
+   sortait en petites capitales grises, les veilles s'empilaient au centre, et
+   la barre de confiance changeait d'epaisseur sur une page que personne
+   n'avait touchee.
+24. **Un scan termine n'est plus un scan en cours.** L'etat courant reste
+   renseigne apres la fin pour l'historique ; le lire comme "en cours"
+   laissait la banniere affichee et tous les boutons grises pour de bon,
+   c'est-a-dire un outil qui ne sert qu'une fois.
 
 ## Collecte
 
