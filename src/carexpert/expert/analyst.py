@@ -126,7 +126,7 @@ class ExpertAnalyst:
             )
         except Exception as exc:
             reason = _explain(exc)
-            log.warning("expertise impossible pour %s: %s", listing.url, reason)
+            log.info("expertise par regles pour %s: %s", listing.url, reason)
             return self._fallback(listing, signals, defects, valuation, reason)
 
         stop_reason = getattr(response, "stop_reason", None)
@@ -283,6 +283,9 @@ def _explain(exc: Exception) -> str:
     except ImportError:  # pragma: no cover - dependency present in prod
         return str(exc)
 
+    message = str(exc)
+    if "Could not resolve authentication" in message or "api_key" in message.lower():
+        return "aucune cle API configuree: analyse par regles uniquement"
     if isinstance(exc, anthropic.AuthenticationError):
         return "cle API refusee: verifier ANTHROPIC_API_KEY"
     if isinstance(exc, anthropic.NotFoundError):

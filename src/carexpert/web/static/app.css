@@ -82,6 +82,7 @@ button:hover { background: var(--accent); color: #0b0c0f; }
 .score.grab { border-color: var(--grab); color: var(--grab); }
 .score.check { border-color: var(--check); color: var(--check); }
 .score.avoid { border-color: var(--avoid); color: var(--avoid); }
+.score.unknown { border-color: var(--muted); color: var(--muted); }
 
 .tag {
   display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px;
@@ -90,6 +91,7 @@ button:hover { background: var(--accent); color: #0b0c0f; }
 .tag.grab { background: rgba(61,220,151,.14); color: var(--grab); }
 .tag.check { background: rgba(245,185,66,.14); color: var(--check); }
 .tag.avoid { background: rgba(255,92,92,.14); color: var(--avoid); }
+.tag.unknown { background: rgba(139,145,163,.16); color: var(--muted); }
 
 .prices { display: flex; align-items: baseline; gap: 10px; font-variant-numeric: tabular-nums; }
 .prices .ask { font-size: 20px; font-weight: 650; letter-spacing: -0.02em; }

@@ -248,7 +248,7 @@ pas.
 
 ```bash
 pip install -e ".[dev,photos]"
-pytest                      # 94 tests
+pytest                      # 121 tests
 carexpert sources           # sources disponibles
 carexpert diagnose -s autoscout24 --url "..."   # valider une source
 ```

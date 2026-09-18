@@ -35,7 +35,9 @@ app = FastAPI(
 app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(WEB_DIR / "templates"))
 
-VERDICT_LABEL = {"grab": "A saisir", "check": "A verifier", "avoid": "A fuir"}
+VERDICT_LABEL = {
+    "grab": "A saisir", "check": "A verifier", "avoid": "A fuir", "unknown": "A estimer",
+}
 
 
 def _listing_payload(row: Listing, duplicates: list[Listing] | None = None) -> dict[str, Any]:

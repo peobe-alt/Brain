@@ -81,3 +81,19 @@ def test_without_comparables_the_score_stays_neutral():
     score = score_deal(listing, empty, analyze_offline(listing).report)
     assert 30 <= score.score <= 70
     assert "reference" in score.headline.lower()
+
+
+def test_no_comparables_means_unknown_not_avoid():
+    """Telling someone to flee a sound car because the base is empty is the
+    worst possible answer, and it is what the first analysis would produce."""
+    listing = _listing("Carnet d'entretien complet, premiere main, CT vierge.", 15_990)
+    empty = Valuation(0, 0, 0, 0.0, 0, "aucune_reference", 0, 0)
+    score = score_deal(listing, empty, analyze_offline(listing).report)
+    assert score.verdict == "unknown"
+
+
+def test_a_real_red_flag_still_wins_over_unknown():
+    listing = _listing("Vendu en l'etat, moteur hs, compteur non garanti.", 15_990)
+    empty = Valuation(0, 0, 0, 0.0, 0, "aucune_reference", 0, 0)
+    score = score_deal(listing, empty, analyze_offline(listing).report)
+    assert score.verdict == "avoid"

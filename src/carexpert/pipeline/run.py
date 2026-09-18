@@ -315,7 +315,9 @@ def _persist(
         analysis.created_at = datetime.utcnow()
 
     row.score = score.score
-    row.fair_price_eur = valuation.fair_price_eur
+    # With no comparables the "fair price" is just the asking price echoed
+    # back: storing it would display a market estimate we never computed.
+    row.fair_price_eur = valuation.fair_price_eur if valuation.comps_count else None
     row.delta_pct = valuation.delta_pct
     row.verdict = score.verdict
     row.analyzed_at = datetime.utcnow()

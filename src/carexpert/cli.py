@@ -32,8 +32,10 @@ app.add_typer(watch_app, name="watch")
 
 console = Console()
 
-VERDICT_STYLE = {"grab": "bold green", "check": "yellow", "avoid": "red"}
-VERDICT_LABEL = {"grab": "A SAISIR", "check": "A VOIR", "avoid": "A FUIR"}
+VERDICT_STYLE = {"grab": "bold green", "check": "yellow", "avoid": "red", "unknown": "dim"}
+VERDICT_LABEL = {
+    "grab": "A SAISIR", "check": "A VOIR", "avoid": "A FUIR", "unknown": "A ESTIMER",
+}
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -220,14 +222,23 @@ def show(listing_id: int = typer.Argument(..., help="Identifiant affiche par `de
             "photos_analyzed": analysis.photos_analyzed if analysis else 0,
         }
 
-    verdict = data["verdict"] or "check"
-    console.print(Panel(
-        f"[bold]{data['title']}[/bold]\n{data['url']}\n\n"
-        f"Prix demande : [bold]{_eur(data['price'])} EUR[/bold]    "
-        f"Estimation marche : {_eur(data['fair'])} EUR\n"
+    verdict = data["verdict"] or "unknown"
+    market = (
+        f"Estimation marche : {_eur(data['fair'])} EUR"
+        if data["fair"]
+        else "Estimation marche : [dim]pas encore de comparables en base[/dim]"
+    )
+    body = "\n".join([
+        f"[bold]{data['title']}[/bold]",
+        data["url"],
+        "",
+        f"Prix demande : [bold]{_eur(data['price'])} EUR[/bold]    {market}",
         f"{data['year']} - {_eur(data['km'])} km - {data['fuel']} - {data['gearbox']} - "
         f"{data['city'] or '?'} ({data['country']})",
-        title=f"[{VERDICT_STYLE.get(verdict)}]{data['score']}/100 - "
+    ])
+    console.print(Panel(
+        body,
+        title=f"[{VERDICT_STYLE.get(verdict, 'white')}]{data['score']}/100 - "
               f"{VERDICT_LABEL.get(verdict, verdict)}[/]",
     ))
 

@@ -191,13 +191,23 @@ def score_deal(
         headline=_headline(final, net_gain, valuation),
         factors=sorted(factors, key=lambda f: -abs(f.points)),
         net_gain_eur=net_gain,
-        verdict=_verdict(final, report),
+        verdict=_verdict(final, report, valuation),
     )
 
 
-def _verdict(score: int, report: ExpertReport | None) -> str:
+def _verdict(score: int, report: ExpertReport | None, valuation: Valuation | None) -> str:
+    """The verdict, including the honest fourth answer.
+
+    Without comparables there is no market position, and the score sits near
+    its neutral base. Reading that as "avoid" would tell someone to walk away
+    from a sound car merely because the database is empty, which is exactly
+    what happens on the very first analysis. `unknown` says what is true: the
+    advert itself looks fine, we just cannot price it yet.
+    """
     if report is not None and report.verdict == "avoid":
         return "avoid"
+    if valuation is None or not valuation.comps_count:
+        return "unknown"
     if score >= 75:
         return "grab"
     if score >= 55:
