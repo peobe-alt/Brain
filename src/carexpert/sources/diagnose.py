@@ -19,7 +19,7 @@ from urllib.parse import urljoin, urlparse
 
 from ..normalize import enrich
 from ..schemas import ListingData
-from .fetcher import FetchError, PoliteFetcher, RobotsDisallowed
+from .fetcher import FetchError, NetworkBlocked, PoliteFetcher, RobotsDisallowed
 from .structured import (
     extract_canonical_links,
     extract_from_page,
@@ -86,6 +86,8 @@ class DiagnosticReport:
     js_suspected: bool = False
     samples: list[SampleReport] = field(default_factory=list)
     error: str = ""
+    #: Notre propre sortie reseau a refuse, le site n'a pas ete joint.
+    network_blocked: bool = False
 
     @property
     def usable_samples(self) -> int:
@@ -93,6 +95,11 @@ class DiagnosticReport:
 
     def verdict(self) -> tuple[str, str]:
         """(niveau, phrase): what this source is worth, in one line."""
+        # Avant tout: a-t-on seulement pu sortir? Un refus de notre reseau ne
+        # dit rien du site, et le confondre avec un refus du site ferait
+        # abandonner une source parfaitement saine.
+        if self.network_blocked:
+            return "reseau", self.error
         if self.error:
             return "echec", self.error
         if not self.robots_allows:
@@ -151,6 +158,16 @@ class DiagnosticReport:
     def actions(self) -> list[str]:
         """What to do next, concretely."""
         level, _ = self.verdict()
+        if level == "reseau":
+            return [
+                "Ce n'est pas le site qui refuse: la connexion a ete bloquee avant de "
+                "l'atteindre (proxy d'entreprise, VPN, ou bac a sable de CI).",
+                "Ne rien conclure sur la source, et ne pas la desactiver: elle n'a pas "
+                "ete testee.",
+                "Verifier la politique de sortie reseau, puis relancer ce diagnostic.",
+                "Aucune reprise n'a ete tentee: un refus de politique n'est pas une "
+                "panne passagere.",
+            ]
         if level == "interdit":
             return [
                 "Ne pas collecter cette URL.",
@@ -313,6 +330,10 @@ def diagnose_search(
             page = fetcher.get(fetch_url, use_cache=False)
         except RobotsDisallowed:
             report.robots_allows = False
+            return report
+        except NetworkBlocked as exc:
+            report.network_blocked = True
+            report.error = str(exc)
             return report
         except FetchError as exc:
             report.error = str(exc)

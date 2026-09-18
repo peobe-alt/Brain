@@ -98,6 +98,38 @@ def test_diagnose_rejects_an_unknown_source(cli):
     result = _run(cli, "diagnose", "--source", "site-inexistant")
     assert result.exit_code == 1
     assert "inconnue" in result.output
+    # Renvoyer vers une autre commande fait perdre un aller-retour.
+    assert "theparking" in result.output
+
+
+def test_diagnose_claims_nothing_it_could_not_observe(cli, monkeypatch):
+    """Sortie reseau bloquee: pas de "robots.txt absent, autorise oui".
+
+    Le site n'a pas ete joint. Afficher ces lignes reviendrait a presenter
+    des valeurs par defaut comme des mesures.
+    """
+    from carexpert.sources.diagnose import DiagnosticReport
+
+    blocked = DiagnosticReport(
+        url="https://www.theparking.eu/#!/used-cars/V70.html",
+        source="theparking",
+        network_blocked=True,
+        error="sortie reseau refusee pour www.theparking.eu (403 Forbidden)",
+        fetched_url="https://www.theparking.eu/",
+        fragment_route="!/used-cars/V70.html",
+    )
+    monkeypatch.setattr(
+        "carexpert.sources.diagnose.diagnose_search", lambda *a, **k: blocked
+    )
+
+    result = _run(cli, "diagnose", "--source", "theparking",
+                  "--url", "https://www.theparking.eu/#!/used-cars/V70.html")
+
+    assert result.exit_code == 0
+    assert "SORTIE RESEAU BLOQUEE" in result.output
+    assert "robots.txt" not in result.output
+    assert "annonces detectees" not in result.output
+    assert "ne pas la desactiver" in result.output
 
 
 def test_a_watchlist_can_be_created_and_listed(cli):

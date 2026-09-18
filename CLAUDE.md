@@ -94,6 +94,14 @@ Chacun vient d'un defaut reel, mesure :
    navigateur headless pour un probleme d'URL. Le fragment se separe avant
    toute requete, et ce qu'il emportait se montre a l'utilisateur.
 
+17. **Un refus de notre reseau n'est pas un refus du site.** Un proxy ou un
+   bac a sable repond 403 au CONNECT et le site n'est jamais joint. Le
+   rapport disait "SITE INJOIGNABLE", ce qui invite a desactiver une source
+   qui n'a rien fait, et la boucle de reprise repassait 4 fois sur 15
+   secondes pour une reponse qui ne changera jamais. `NetworkBlocked` sort
+   de la boucle et nomme le vrai coupable ; le rapport n'affiche alors que
+   ce qu'il a pu observer, jamais un defaut presente comme une mesure.
+
 ## Collecte
 
 Le `robots.txt` est respecte par defaut, une requete toutes les 2,5 secondes

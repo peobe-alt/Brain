@@ -238,3 +238,29 @@ def test_a_plain_anchor_leaves_the_url_untouched():
     assert split_fragment_route("https://site.fr/recherche") == (
         "https://site.fr/recherche", "",
     )
+
+
+def test_a_proxy_denial_is_not_retried():
+    """Un refus de politique n'est pas une panne passagere.
+
+    La boucle de reprise repassait quatre fois, backoff compris, sur une
+    reponse qui ne changera jamais.
+    """
+    import httpx
+    import pytest
+
+    from carexpert.sources.fetcher import NetworkBlocked, PoliteFetcher
+
+    attempts = []
+
+    def deny(request):
+        attempts.append(request.url)
+        raise httpx.ProxyError("403 Forbidden")
+
+    fetcher = PoliteFetcher(delay=0, respect_robots=False)
+    fetcher._client = httpx.Client(transport=httpx.MockTransport(deny))
+    with pytest.raises(NetworkBlocked, match="sortie reseau refusee"):
+        fetcher.get("https://www.theparking.eu/", use_cache=False)
+    fetcher.close()
+
+    assert len(attempts) == 1

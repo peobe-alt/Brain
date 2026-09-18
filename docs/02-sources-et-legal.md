@@ -100,6 +100,23 @@ fragment>"` retire le fragment, previent dans les logs et dit quelle URL
 part vraiment, au lieu de parcourir la page d'accueil et d'annoncer
 "0 annonce".
 
+## Notre reseau, ou le site ?
+
+Un proxy d'entreprise, un VPN ou un bac a sable de CI repond 403 ou 407 au
+CONNECT, et le site n'est jamais joint. Le diagnostic distingue ce cas
+(`SORTIE RESEAU BLOQUEE`) d'un refus venu du site, pour deux raisons :
+
+- **la conclusion est inverse.** Un site qui bloque a signifie son refus et
+  on s'arrete. Une sortie reseau bloquee ne dit rien du site : desactiver la
+  source sur cette base reviendrait a abandonner une source jamais testee ;
+- **la reprise est inutile.** Un refus de politique n'est pas une panne
+  passagere. La boucle de reprise y repassait quatre fois, sur quinze
+  secondes, pour une reponse qui ne changera jamais. Elle ne le fait plus.
+
+Dans ce cas le rapport n'affiche que ce qu'il a pu observer. Pas de
+"robots.txt absent, autorise oui" : ces lignes seraient des valeurs par
+defaut presentees comme des mesures.
+
 ## Forme des URL d'annonce
 
 Le motif de lien d'une source sert a deux choses : reconnaitre une annonce

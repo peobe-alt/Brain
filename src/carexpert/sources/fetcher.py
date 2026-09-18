@@ -41,6 +41,22 @@ class FetchError(RuntimeError):
     """Raised when a URL could not be retrieved after every retry."""
 
 
+class NetworkBlocked(FetchError):
+    """Raised when our own network refused the connection, not the site.
+
+    A corporate proxy, a VPN or a sandboxed CI runner answers 403 or 407 to
+    the CONNECT and the site is never reached. Two reasons this must not be
+    confused with a refusal from the site:
+
+    * retrying is pointless. A policy denial is not a transient failure, and
+      backing off exponentially only turns a dead end into a slow dead end;
+    * the conclusion is the opposite. A site that blocks us has signalled
+      its refusal and we stop (see docs/02-sources-et-legal.md); a blocked
+      egress says nothing at all about the site, and abandoning a legitimate
+      source over it would be a mistake.
+    """
+
+
 @dataclass(slots=True)
 class FetchResult:
     url: str
@@ -196,6 +212,13 @@ class PoliteFetcher:
             self._throttle(url)
             try:
                 response = self._client.get(url)
+            except httpx.ProxyError as exc:
+                # Refus de notre propre sortie reseau: la boucle de reprise
+                # ne peut rien y changer, et le site n'y est pour rien.
+                raise NetworkBlocked(
+                    f"sortie reseau refusee pour {urlparse(url).netloc} ({exc}); "
+                    "le site n'a pas ete joint"
+                ) from exc
             except httpx.HTTPError as exc:
                 last_error = exc
                 time.sleep(2**attempt)

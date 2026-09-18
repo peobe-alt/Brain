@@ -344,6 +344,7 @@ VERDICT_DIAG = {
     "fragment": ("red", "RECHERCHE RESTEE DANS LE NAVIGATEUR"),
     "interdit": ("red", "INTERDIT PAR LE ROBOTS.TXT"),
     "echec": ("red", "SITE INJOIGNABLE"),
+    "reseau": ("red", "SORTIE RESEAU BLOQUEE (PAS LE SITE)"),
 }
 
 
@@ -399,13 +400,24 @@ def diagnose(
     table = Table(header_style="bold", show_header=False, box=None)
     table.add_column("critere", style="dim")
     table.add_column("valeur")
+    if report.fragment_route:
+        table.add_row("URL demandee", report.fetched_url)
+        table.add_row("reste dans le navigateur", f"[red]#{report.fragment_route}[/red]")
+    # Rien n'a ete observe: afficher "robots.txt absent, autorise oui" serait
+    # affirmer ce qu'on n'a pas pu verifier.
+    if report.network_blocked:
+        if not report.fragment_route:
+            table.add_row("URL demandee", report.fetched_url)
+        table.add_row("hote joint", "[red]non[/red]")
+        console.print(table)
+        console.print("\n[bold]A faire maintenant[/bold]")
+        for action in report.actions():
+            console.print(f"  [cyan]>[/cyan] {action}")
+        return
     table.add_row("robots.txt", "present" if report.robots_present else "absent")
     table.add_row("autorise", "[green]oui[/green]" if report.robots_allows else "[red]non[/red]")
     if report.crawl_delay:
         table.add_row("delai impose", f"{report.crawl_delay:.1f} s")
-    if report.fragment_route:
-        table.add_row("URL demandee", report.fetched_url)
-        table.add_row("reste dans le navigateur", f"[red]#{report.fragment_route}[/red]")
     table.add_row("reponse", f"HTTP {report.status} - {report.page_bytes} octets "
                              f"en {report.elapsed_s:.1f} s")
     table.add_row("motif de lien", report.pattern_used)

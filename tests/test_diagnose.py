@@ -321,3 +321,47 @@ def test_a_refusal_gets_no_workaround():
     assert "sitemap" not in actions.lower()
     assert "Ne pas collecter" in actions
     assert fetcher.calls == []
+
+
+# --- Notre reseau, ou le site? ---------------------------------------------
+#
+# Cas rencontre pour de vrai sur theparking.eu: le proxy de sortie repond 403
+# au CONNECT et le site n'est jamais joint. Le rapport disait "SITE
+# INJOIGNABLE", ce qui invite a desactiver une source qui n'a rien fait, et
+# la boucle de reprise repassait quatre fois sur un refus de politique.
+
+
+class BlockedFetcher(FakeFetcher):
+    """Sortie reseau refusee: rien ne sort de la machine."""
+
+    def get(self, url, use_cache=True):
+        from carexpert.sources.fetcher import NetworkBlocked
+
+        self.calls.append(url)
+        raise NetworkBlocked(
+            "sortie reseau refusee pour www.theparking.eu (403 Forbidden); "
+            "le site n'a pas ete joint"
+        )
+
+
+def test_a_blocked_egress_does_not_accuse_the_site():
+    fetcher = BlockedFetcher({})
+    report = diagnose_search(HASHBANG_URL, source="theparking", fetcher=fetcher)
+    level, phrase = report.verdict()
+    actions = " ".join(report.actions())
+
+    assert level == "reseau"
+    assert report.network_blocked
+    assert "n'a pas ete joint" in phrase
+    assert "Ce n'est pas le site qui refuse" in actions
+    # Le piege: ne pas faire retirer une source qui n'a jamais ete testee.
+    assert "ne pas la desactiver" in actions
+
+
+def test_a_real_site_refusal_stays_a_site_refusal():
+    """403 servi par le site: la distinction n'a de valeur que si elle tient."""
+    fetcher = FakeFetcher({"/recherche": SEARCH_OK}, status=403)
+    report = diagnose_search("https://site.fr/recherche", source="test", fetcher=fetcher)
+
+    assert report.verdict()[0] == "echec"
+    assert not report.network_blocked
