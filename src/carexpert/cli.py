@@ -312,6 +312,104 @@ def analyse_url(
     show(listing_id)
 
 
+VERDICT_DIAG = {
+    "ok": ("green", "SOURCE EXPLOITABLE"),
+    "partiel": ("yellow", "PARTIELLEMENT EXPLOITABLE"),
+    "extraction": ("yellow", "EXTRACTION INCOMPLETE"),
+    "motif": ("yellow", "MOTIF DE LIEN A CORRIGER"),
+    "js": ("red", "SITE RENDU EN JAVASCRIPT"),
+    "interdit": ("red", "INTERDIT PAR LE ROBOTS.TXT"),
+    "echec": ("red", "SITE INJOIGNABLE"),
+}
+
+
+@app.command()
+def diagnose(
+    source: str = typer.Option(..., "--source", "-s", help="Source a tester."),
+    url: Optional[str] = typer.Option(None, "--url", help="URL de recherche collee depuis le site."),
+    make: Optional[str] = typer.Option(None, "--make", help="Sinon, criteres pour construire l'URL."),
+    model: Optional[str] = typer.Option(None, "--model"),
+    samples: int = typer.Option(3, "--samples", help="Nombre d'annonces ouvertes pour verification."),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Verifier qu'une source fonctionne vraiment, et dire quoi corriger sinon."""
+    _setup_logging(verbose)
+    from .sources import get_source
+    from .sources.configured import ConfiguredSource, load_site_configs
+    from .sources.diagnose import diagnose_search
+
+    configs = load_site_configs()
+    config = configs.get(source, {})
+    if not config:
+        console.print(f"[red]Source '{source}' inconnue.[/red] Voir : carexpert sources")
+        raise typer.Exit(1)
+
+    target = url
+    if target is None:
+        adapter = get_source(source)
+        if isinstance(adapter, ConfiguredSource):
+            target = adapter.build_search_url(_build_query(make, model, None, None, None,
+                                                           None, None, None, "FR", 50), 1)
+        adapter.close()
+    if not target:
+        console.print("[red]Aucune URL a tester.[/red] Passer --url ou --make/--model.")
+        raise typer.Exit(1)
+
+    console.print(f"[dim]Test de {target}[/dim]\n")
+    with console.status("Verification en cours (rythme poli, comptez quelques secondes)..."):
+        report = diagnose_search(
+            target,
+            source=source,
+            pattern=config.get("listing_link_pattern", r"/\d{5,}"),
+            selectors=config.get("selectors"),
+            samples=samples,
+        )
+
+    level, phrase = report.verdict()
+    color, label = VERDICT_DIAG.get(level, ("white", level.upper()))
+    console.print(Panel(phrase, title=f"[{color}]{label}[/]", border_style=color))
+
+    table = Table(header_style="bold", show_header=False, box=None)
+    table.add_column("critere", style="dim")
+    table.add_column("valeur")
+    table.add_row("robots.txt", "present" if report.robots_present else "absent")
+    table.add_row("autorise", "[green]oui[/green]" if report.robots_allows else "[red]non[/red]")
+    if report.crawl_delay:
+        table.add_row("delai impose", f"{report.crawl_delay:.1f} s")
+    table.add_row("reponse", f"HTTP {report.status} - {report.page_bytes} octets "
+                             f"en {report.elapsed_s:.1f} s")
+    table.add_row("motif de lien", report.pattern_used)
+    table.add_row("annonces detectees", str(report.links_found))
+    if report.suggested_pattern:
+        table.add_row("motif suggere", f"[yellow]{report.suggested_pattern}[/yellow]")
+    if report.js_suspected:
+        table.add_row("rendu", "[red]JavaScript detecte[/red]")
+    console.print(table)
+
+    if report.samples:
+        console.print()
+        sample_table = Table(title="Echantillon d'annonces", header_style="bold")
+        sample_table.add_column("annonce", max_width=44)
+        sample_table.add_column("schema.org")
+        sample_table.add_column("photos", justify="right")
+        sample_table.add_column("champs extraits")
+        sample_table.add_column("manquants")
+        for sample in report.samples:
+            sample_table.add_row(
+                sample.url[-44:],
+                "[green]oui[/green]" if sample.has_jsonld else "[yellow]non[/yellow]",
+                str(sample.photo_count),
+                f"{len(sample.filled)}/10",
+                "[red]" + ", ".join(sample.missing_critical) + "[/red]"
+                if sample.missing_critical else "[green]aucun[/green]",
+            )
+        console.print(sample_table)
+
+    console.print("\n[bold]A faire maintenant[/bold]")
+    for action in report.actions():
+        console.print(f"  [cyan]>[/cyan] {action}")
+
+
 @app.command()
 def demo(
     size: int = typer.Option(300, "--size", help="Taille du marche synthetique."),

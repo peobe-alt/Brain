@@ -63,6 +63,37 @@ carexpert serve        # tableau de bord sur http://127.0.0.1:8000
 
 ## Sur de vraies annonces
 
+**Commencer par la : verifier qu'une source fonctionne vraiment.**
+
+```bash
+carexpert diagnose --source autoscout24 --url "<URL de recherche collee>"
+```
+
+En une trentaine de secondes, et quelques requetes seulement, la commande
+repond : le robots.txt autorise-t-il cette URL, le site repond-il, les
+annonces sont-elles dans le HTML ou rendues en JavaScript, le motif de lien
+est-il bon (sinon elle en propose un, deduit de la page), et les champs
+essentiels sortent-ils correctement sur un echantillon d'annonces. Elle
+termine par la liste de ce qu'il faut corriger.
+
+```
++------------- PARTIELLEMENT EXPLOITABLE -------------+
+| 2/3 annonces exploitables                           |
++-----------------------------------------------------+
+ robots.txt          present
+ autorise            oui
+ delai impose        1.0 s
+ motif de lien       /offres/[^?#]+
+ annonces detectees  3
+ motif suggere       /annonce/[^/]+-?\d{4,}.html
+
+A faire maintenant
+  > Champs manquants sur l'echantillon: price_eur (1), km (1), year (1).
+  > Ajouter des selecteurs CSS de secours dans sites/autoscout24.yaml.
+```
+
+Une fois la source validee :
+
 ```bash
 cp .env.example .env          # y mettre ANTHROPIC_API_KEY pour l'expertise photo
 ```
@@ -189,8 +220,9 @@ pas.
 
 ```bash
 pip install -e ".[dev,photos]"
-pytest                      # 58 tests
+pytest                      # 66 tests
 carexpert sources           # sources disponibles
+carexpert diagnose -s autoscout24 --url "..."   # valider une source
 ```
 
 Structure :
@@ -216,4 +248,5 @@ src/carexpert/
 - Il n'a pas acces a l'historique VIN : c'est la donnee qui lui manque le
   plus, et elle s'achete.
 - Les gabarits d'URL de recherche des sites reels ne sont pas encore valides
-  en conditions reelles. Le chemin `--url` fonctionne, lui, immediatement.
+  en conditions reelles. Le chemin `--url` fonctionne, lui, immediatement, et
+  `carexpert diagnose` dit en une commande ce qu'il reste a corriger.

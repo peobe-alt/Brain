@@ -30,6 +30,27 @@ l'interface du site, avec ses filtres, copier l'URL, puis
 carexpert scan --source autoscout24 --url "<URL collee>" --deep 5
 ```
 
+## Valider une source en une commande
+
+```bash
+carexpert diagnose --source autoscout24 --url "<URL de recherche>"
+```
+
+La commande enchaine, au rythme poli du site :
+
+1. lecture du `robots.txt` et verification que l'URL est autorisee (si elle ne
+   l'est pas, elle s'arrete la, sans rien telecharger) ;
+2. recuperation de la page de recherche : statut, taille, temps de reponse ;
+3. comptage des liens d'annonce reconnus par le motif configure. Si le compte
+   est nul, elle deduit la forme des URL d'annonce de la page elle-meme et
+   propose un motif de remplacement ;
+4. detection d'un rendu JavaScript (marqueurs Next, Nuxt, Remix, Angular) ;
+5. ouverture de quelques annonces et verification champ par champ de ce qui
+   sort : prix, kilometrage, annee, marque, photos.
+
+Elle se termine par un verdict et la liste des corrections a apporter. C'est
+le premier reflexe avant d'ajouter ou de reactiver une source.
+
 ## Sites rendus en JavaScript
 
 `lacentrale`, `leboncoin` et `coches.net` rendent leurs resultats cote

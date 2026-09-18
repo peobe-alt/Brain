@@ -10,13 +10,16 @@
 - base de faiblesses connues par motorisation
 - score explique, veilles, alertes (console, webhook, Telegram, email)
 - tableau de bord web et API JSON
-- 58 tests, dont la mesure de separation affaires / pieges
+- diagnostic de source en une commande (`carexpert diagnose`)
+- 66 tests, dont la mesure de separation affaires / pieges
 
 ## Prochaines etapes, par ordre de valeur
 
 1. **Valider deux sources reelles de bout en bout.** Prendre AutoScout24 et
-   mobile.de, verifier les gabarits d'URL, mesurer le taux d'extraction sur
-   200 annonces, passer `verified: true`.
+   mobile.de, lancer `carexpert diagnose` sur une recherche reelle, corriger
+   ce qu'elle signale, mesurer le taux d'extraction sur 200 annonces, puis
+   passer `verified: true`. C'est le prealable a tout le reste : sans donnees
+   reelles en base, il n'y a pas de comparables, donc pas d'estimation.
 2. **Historiser les prix sur trois mois.** La baisse de prix est le meilleur
    signal d'un vendeur pret a negocier, et c'est une donnee que personne
    n'affiche.
