@@ -38,9 +38,18 @@ templates = Jinja2Templates(directory=str(WEB_DIR / "templates"))
 VERDICT_LABEL = {"grab": "A saisir", "check": "A verifier", "avoid": "A fuir"}
 
 
-def _listing_payload(row: Listing) -> dict[str, Any]:
+def _listing_payload(row: Listing, duplicates: list[Listing] | None = None) -> dict[str, Any]:
     gain = (row.fair_price_eur or 0) - (row.price_eur or 0)
+    duplicates = duplicates or []
+    spread = 0.0
+    if duplicates and row.price_eur:
+        highest = max((d.price_eur or 0) for d in duplicates)
+        spread = max(0.0, highest - row.price_eur)
     return {
+        "other_sites": [
+            {"source": d.source, "url": d.url, "price_eur": d.price_eur} for d in duplicates
+        ],
+        "price_spread_eur": round(spread),
         "id": row.id,
         "title": row.title,
         "url": row.url,
@@ -67,13 +76,18 @@ def _listing_payload(row: Listing) -> dict[str, Any]:
 
 
 def _query_deals(session, *, min_score: int, make: str | None, verdict: str | None, limit: int):
+    """Best deals, one entry per physical vehicle."""
+    from ..pipeline.dedupe import group_by_vehicle
+
     conditions = [Listing.active.is_(True), Listing.score.is_not(None), Listing.score >= min_score]
     if make:
         conditions.append(Listing.make == make)
     if verdict:
         conditions.append(Listing.verdict == verdict)
-    statement = select(Listing).where(*conditions).order_by(Listing.score.desc()).limit(limit)
-    return list(session.execute(statement).scalars().all())
+    # Over-fetch, because cross-posted copies collapse into one entry.
+    statement = select(Listing).where(*conditions).order_by(Listing.score.desc()).limit(limit * 3)
+    rows = list(session.execute(statement).scalars().all())
+    return group_by_vehicle(rows)[:limit]
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -85,8 +99,9 @@ def dashboard(
     limit: int = Query(60, ge=1, le=300),
 ):
     with session_scope() as session:
-        rows = _query_deals(session, min_score=min_score, make=make, verdict=verdict, limit=limit)
-        deals = [_listing_payload(row) for row in rows]
+        grouped = _query_deals(session, min_score=min_score, make=make, verdict=verdict,
+                               limit=limit)
+        deals = [_listing_payload(row, others) for row, others in grouped]
         makes = [
             m for m in session.execute(
                 select(Listing.make).where(Listing.make.is_not(None)).distinct().order_by(Listing.make)
@@ -173,8 +188,12 @@ def api_deals(
     limit: int = Query(50, ge=1, le=300),
 ):
     with session_scope() as session:
-        rows = _query_deals(session, min_score=min_score, make=make, verdict=verdict, limit=limit)
-        return {"count": len(rows), "deals": [_listing_payload(row) for row in rows]}
+        grouped = _query_deals(session, min_score=min_score, make=make, verdict=verdict,
+                               limit=limit)
+        return {
+            "count": len(grouped),
+            "deals": [_listing_payload(row, others) for row, others in grouped],
+        }
 
 
 @app.get("/api/listing/{listing_id}")

@@ -25,6 +25,19 @@ age, kilometrage, boite, options, type de vendeur, pays. Les courbes sont
 multiplicatives et explicites dans `valuation/adjust.py` ; elles peuvent etre
 reajustees sur vos propres donnees via `fit_depreciation`.
 
+Avant tout calcul, les comparables sont dedupliques : une meme voiture
+publiee sur trois sites ne compte qu'une fois, au prix le plus bas, celui
+auquel on peut reellement l'acheter. Sans cela l'estimation derive vers le
+haut de facon systematique, parce que les marchands crosspostent beaucoup
+plus que les particuliers et affichent des prix plus eleves : toutes les
+annonces paraitraient alors meilleures qu'elles ne sont.
+
+L'identite d'un vehicule est construite sur le kilometrage exact, jamais
+arrondi. Une tolerance parait plus sure et ne l'est pas : sur un marche de
+deux cents modeles identiques les kilometrages sont denses, et toute marge
+fusionne des voitures qui se ressemblent seulement. Perdre un vrai
+comparable coute plus cher que manquer un doublon.
+
 Le prix juste est la mediane des 80% centraux des prix ajustes. Au-dela de
 douze comparables, une regression log-lineaire est melangee a parts egales :
 elle extrapole mieux aux extremes de l'echantillon.

@@ -12,21 +12,28 @@ import hashlib
 
 from ..schemas import ListingData
 
-#: Mileage bucket, in km: two adverts within the same bucket describe the
-#: same odometer reading for our purposes.
-KM_BUCKET = 2_000
-
-
 def fingerprint(listing: ListingData) -> str:
-    """Stable identity for a physical vehicle, across sites and reposts."""
+    """Stable identity for a physical vehicle, across sites and reposts.
+
+    The odometer reading is taken exactly, not bucketed. Bucketing looked
+    safer and is in fact the dangerous choice: on a market of two hundred
+    identical models the mileages are dense, so any tolerance merges cars
+    that merely resemble each other. Dropping a real comparable costs more
+    than missing a cross-post, because it silently shrinks the sample the
+    whole estimate rests on.
+
+    Two genuinely different cars can still collide (round mileages cluster
+    at 100 000 km), but a collision requires identical make, model, year,
+    fuel, power and odometer: such cars are worth nearly the same, so
+    keeping only the cheaper one barely moves the median.
+    """
     parts = [
         (listing.make or "?").lower(),
         (listing.model or "?").lower(),
         str(listing.year or "?"),
-        str((listing.km or 0) // KM_BUCKET),
+        str(listing.km if listing.km is not None else "?"),
         listing.fuel.value,
         str(listing.power_hp or "?"),
-        (listing.color or "?").lower()[:6],
     ]
     return hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()[:24]
 
@@ -44,3 +51,24 @@ def looks_like_same_car(a: ListingData, b: ListingData) -> bool:
         if cheaper and abs(a.price_eur - b.price_eur) / cheaper > 0.15:
             return False
     return True
+
+
+def group_by_vehicle(rows: list) -> list[tuple[object, list[object]]]:
+    """Group database rows by physical vehicle.
+
+    Returns `(best, others)` pairs, best first by score then by price. The
+    same car on three sites is one entry in a results list, not three, and
+    the price spread between those sites is itself worth knowing: it says
+    where to buy, and how much room the seller has.
+    """
+    groups: dict[str, list] = {}
+    for row in rows:
+        key = getattr(row, "fingerprint", None) or f"id:{getattr(row, 'id', id(row))}"
+        groups.setdefault(key, []).append(row)
+
+    output: list[tuple[object, list[object]]] = []
+    for members in groups.values():
+        members.sort(key=lambda r: (-(r.score or 0), r.price_eur or float("inf")))
+        output.append((members[0], members[1:]))
+    output.sort(key=lambda pair: -(pair[0].score or 0))
+    return output

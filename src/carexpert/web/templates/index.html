@@ -47,6 +47,12 @@
         <span class="fair">marche {{ '{:,.0f}'.format(d.fair_price_eur).replace(',', ' ') }} €</span>
         {% endif %}
       </div>
+      {% if d.other_sites %}
+      <div class="meta" style="color:var(--check)">
+        Aussi sur {{ d.other_sites|length }} autre(s) site(s)
+        {% if d.price_spread_eur %} · jusqu'a {{ d.price_spread_eur }} € plus cher ailleurs{% endif %}
+      </div>
+      {% endif %}
       <div>
         <span class="tag {{ d.verdict }}">{{ d.verdict_label }}</span>
         {% if d.net_gain_eur %}

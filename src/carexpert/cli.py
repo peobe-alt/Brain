@@ -151,8 +151,10 @@ def deals(
                       Listing.active.is_(True)]
         if make:
             conditions.append(Listing.make == make)
+        from .pipeline.dedupe import group_by_vehicle
+
         rows = session.execute(
-            select(Listing).where(*conditions).order_by(Listing.score.desc()).limit(limit)
+            select(Listing).where(*conditions).order_by(Listing.score.desc()).limit(limit * 3)
         ).scalars().all()
         payload = [
             {
@@ -160,9 +162,9 @@ def deals(
                 "fair_price_eur": row.fair_price_eur, "score": row.score,
                 "verdict": row.verdict, "url": row.url,
                 "net_gain_eur": (row.fair_price_eur or 0) - (row.price_eur or 0),
-                "km": row.km, "year": row.year,
+                "km": row.km, "year": row.year, "copies": len(others),
             }
-            for row in rows
+            for row, others in group_by_vehicle(rows)[:limit]
         ]
     if not payload:
         console.print("[yellow]Aucune affaire au-dessus de ce score.[/yellow] "
@@ -188,7 +190,8 @@ def _print_deals_table(rows: list[dict]) -> None:
             f"[{VERDICT_STYLE.get(verdict, 'white')}]{row['score']}[/]",
             f"[{VERDICT_STYLE.get(verdict, 'white')}]{VERDICT_LABEL.get(verdict, verdict)}[/]",
             row["title"][:42],
-            _eur(row.get("price_eur")),
+            _eur(row.get("price_eur")) + (f" [dim]x{row['copies'] + 1}[/dim]"
+                                          if row.get("copies") else ""),
             _eur(row.get("fair_price_eur")),
             f"[green]+{_eur(gain)}[/green]" if gain > 0 else f"[red]{_eur(gain)}[/red]",
         )

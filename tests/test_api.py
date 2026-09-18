@@ -47,3 +47,33 @@ def test_listing_page_shows_the_analysis(client):
 
 def test_unknown_listing_returns_404(client):
     assert client.get("/listing/999999").status_code == 404
+
+
+def test_a_cross_posted_car_appears_once(demo_market):
+    """Three adverts for one car must not fill three cards."""
+    from carexpert.normalize import enrich
+    from carexpert.pipeline.ingest import ingest
+    from carexpert.schemas import ListingData
+    from carexpert.api.app import app
+
+    rows = [
+        enrich(ListingData(
+            source=site, source_id="croisee", url=f"https://{site}/croisee",
+            title="Volkswagen Golf 1.6 TDI 115 Confortline 2019",
+            price=price, km=90_500, year=2019,
+        ))
+        for site, price in (("siteA", 15_900), ("siteB", 14_700), ("siteC", 16_400))
+    ]
+    ingest(demo_market, rows)
+    scan(demo_market, sources=[], query=SearchQuery(limit=400,
+         countries=["FR", "DE", "IT", "BE", "ES", "NL"]), revalue_all=True)
+    demo_market.commit()
+
+    deals = TestClient(app).get("/api/deals?min_score=0&limit=300").json()["deals"]
+    matching = [d for d in deals if "croisee" in d["url"] or d["other_sites"]]
+    grouped = [d for d in matching if d["other_sites"]]
+    assert len(grouped) == 1, "les trois annonces doivent etre regroupees"
+    entry = grouped[0]
+    assert len(entry["other_sites"]) == 2
+    assert entry["price_eur"] == 14_700          # la moins chere est mise en avant
+    assert entry["price_spread_eur"] == 1_700    # l'ecart entre sites est un signal

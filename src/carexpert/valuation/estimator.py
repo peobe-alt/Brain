@@ -87,6 +87,7 @@ def estimate(
     asking = facts.price_eur or 0.0
 
     comps, tier = find_comparables(session, facts, min_count=min_comps)
+    unique_vehicles = len({c.fingerprint for c in comps if c.fingerprint})
     if not comps:
         return Valuation(
             fair_price_eur=asking, low_eur=asking, high_eur=asking, confidence=0.0,
@@ -149,6 +150,7 @@ def estimate(
             "prix_ajustes_max": round(max(adjusted), 2),
             "modele_ajuste": round(fitted, 2) if fitted else None,
             "pays_compares": sorted({c.country for c in comps}),
+            "vehicules_distincts": unique_vehicles or len(comps),
             "exemples": [
                 {"titre": c.title[:80], "prix": c.price_eur, "km": c.km,
                  "annee": c.year, "url": c.url}

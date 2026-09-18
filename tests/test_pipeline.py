@@ -33,6 +33,13 @@ def test_different_mileage_means_different_car():
     assert fingerprint(a) != fingerprint(b)
 
 
+def test_two_similar_but_distinct_cars_keep_distinct_identities():
+    """Bucketing mileage would merge these, and shrink every comparable pool."""
+    a = _listing(source_id="1", km=88_000)
+    b = _listing(source_id="2", km=88_900)
+    assert fingerprint(a) != fingerprint(b)
+
+
 def test_ingest_is_idempotent(session):
     ingest(session, [_listing()])
     ingest(session, [_listing()])

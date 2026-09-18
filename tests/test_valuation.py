@@ -85,3 +85,80 @@ def test_refitting_depreciation_recovers_planted_rates():
     age_rate, km_rate = fit_depreciation(samples)
     assert abs(age_rate - 0.125) < 0.02
     assert abs(km_rate - 0.30) < 0.03
+
+
+def _cross_posted(session, sites: tuple[str, ...], price: float, km: int = 90_500):
+    """The same physical car, advertised on several sites at once."""
+    from carexpert.normalize import enrich
+    from carexpert.pipeline.ingest import ingest
+    from carexpert.schemas import ListingData
+
+    rows = [
+        enrich(ListingData(
+            source=site, source_id="marchand", url=f"https://{site}/marchand",
+            title="Volkswagen Golf 1.6 TDI 115 Confortline 2019",
+            price=price, km=km, year=2019,
+        ))
+        for site in sites
+    ]
+    ingest(session, rows)
+    session.flush()
+
+
+def _healthy_market(session, count: int = 10):
+    from carexpert.normalize import enrich
+    from carexpert.pipeline.ingest import ingest
+    from carexpert.schemas import ListingData
+
+    rows = [
+        enrich(ListingData(
+            source="siteA", source_id=f"n{i}", url=f"https://siteA/n{i}",
+            title="Volkswagen Golf 1.6 TDI 115 Confortline 2019",
+            price=14_500 + i * 120, km=88_000 + i * 900, year=2019,
+        ))
+        for i in range(count)
+    ]
+    ingest(session, rows)
+    session.flush()
+
+
+def test_a_car_posted_on_four_sites_counts_once(session):
+    """Dealers cross-post far more than private sellers, and price higher:
+    counting each copy biases every estimate upward."""
+    _healthy_market(session)
+    _cross_posted(session, ("siteA", "siteB", "siteC", "siteD"), price=21_000)
+
+    target = session.execute(select(Listing).where(Listing.source_id == "n0")).scalar_one()
+    valuation = estimate(session, target)
+    assert valuation.comps_count == 10          # 9 autres + 1 seule fois le marchand
+    assert valuation.details["vehicules_distincts"] == 10
+
+
+def test_deduplication_keeps_the_cheapest_copy(session):
+    from carexpert.valuation.comps import deduplicate, to_facts
+
+    _cross_posted(session, ("siteA",), price=21_000)
+    _cross_posted(session, ("siteB",), price=19_500)
+    rows = session.execute(select(Listing)).scalars().all()
+    kept = deduplicate([to_facts(row) for row in rows])
+    assert len(kept) == 1
+    assert kept[0].price_eur == 19_500          # le prix auquel on peut vraiment l'acheter
+
+
+def test_similar_but_distinct_cars_are_not_merged(session):
+    """Nine cars 900 km apart are nine comparables, not one."""
+    _healthy_market(session, count=10)
+    target = session.execute(select(Listing).where(Listing.source_id == "n0")).scalar_one()
+    valuation = estimate(session, target)
+    assert valuation.comps_count == 9
+
+
+def test_the_same_car_elsewhere_is_not_its_own_comparable(session):
+    _healthy_market(session)
+    _cross_posted(session, ("siteA", "siteB"), price=16_000)
+    target = session.execute(
+        select(Listing).where(Listing.source == "siteA", Listing.source_id == "marchand")
+    ).scalar_one()
+    valuation = estimate(session, target)
+    urls = {example["url"] for example in valuation.details["exemples"]}
+    assert "https://siteB/marchand" not in urls

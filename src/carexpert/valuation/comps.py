@@ -39,15 +39,20 @@ class Facts:
     listing_id: int | None = None
     url: str = ""
     title: str = ""
+    #: Identity of the physical vehicle, shared across sites and reposts.
+    fingerprint: str = ""
 
 
 def to_facts(obj: ListingData | Listing) -> Facts:
+    from ..pipeline.dedupe import fingerprint as compute_fingerprint
+
     if isinstance(obj, ListingData):
         return Facts(
             make=obj.make, model=obj.model, year=obj.year, age_years=obj.age_years,
             km=obj.km, fuel=obj.fuel, gearbox=obj.gearbox, body=obj.body.value,
             options=list(obj.options), price_eur=obj.price_eur, country=obj.country,
             seller_type=obj.seller_type, url=obj.url, title=obj.title,
+            fingerprint=compute_fingerprint(obj),
         )
     age = None
     if obj.year:
@@ -57,7 +62,7 @@ def to_facts(obj: ListingData | Listing) -> Facts:
         fuel=Fuel(obj.fuel), gearbox=Gearbox(obj.gearbox), body=obj.body,
         options=list(obj.options or []), price_eur=obj.price_eur, country=obj.country,
         seller_type=SellerType(obj.seller_type), listing_id=obj.id, url=obj.url,
-        title=obj.title,
+        title=obj.title, fingerprint=obj.fingerprint or "",
     )
 
 
@@ -113,13 +118,42 @@ def find_comparables(
             conditions.append(Listing.country == target.country)
 
         rows = session.execute(select(Listing).where(and_(*conditions)).limit(400)).scalars().all()
-        candidates = [to_facts(row) for row in rows]
+        candidates = deduplicate(
+            [to_facts(row) for row in rows],
+            exclude_fingerprint=target.fingerprint,
+        )
         if len(candidates) >= min_count:
             return candidates, tier
         if len(candidates) > len(best):
             best, best_tier = candidates, tier
 
     return best, best_tier if best else "aucun"
+
+
+def deduplicate(candidates: list[Facts], *, exclude_fingerprint: str = "") -> list[Facts]:
+    """One physical vehicle, one vote.
+
+    The same car is routinely posted on three sites at three prices, and
+    dealers cross-post far more than private sellers. Counting each copy
+    would let a handful of vehicles dominate the sample, and since dealer
+    prices are the higher ones the bias is systematically upward: every
+    advert would look like a better deal than it is. Where a vehicle appears
+    several times, the cheapest listing wins, because that is the price at
+    which it can actually be bought.
+    """
+    best: dict[str, Facts] = {}
+    unidentified: list[Facts] = []
+    for candidate in candidates:
+        key = candidate.fingerprint
+        if not key:
+            unidentified.append(candidate)
+            continue
+        if exclude_fingerprint and key == exclude_fingerprint:
+            continue            # the target advertised elsewhere is not a comparable
+        current = best.get(key)
+        if current is None or (candidate.price_eur or 0) < (current.price_eur or 0):
+            best[key] = candidate
+    return list(best.values()) + unidentified
 
 
 def tier_confidence(tier: str) -> float:
