@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     max_retries: int = 3
     user_agent: str = "CarExpertBot/0.1 (+contact: set CAREXPERT_USER_AGENT)"
     max_pages_per_search: int = 3
+    #: Une page de resultats donne le prix, le kilometrage et l'annee, jamais
+    #: le descriptif ni toutes les photos. Les meilleures annonces du tour
+    #: sont donc rouvertes une a une avant l'expertise. Au-dela d'une
+    #: vingtaine, le temps passe a attendre le site depasse le gain.
+    detail_top: int = 20
 
     # --- Scoring / alerting ------------------------------------------------
     alert_threshold: int = 75
@@ -61,6 +66,11 @@ class Settings(BaseSettings):
     valuation_ttl_hours: int = 24
     #: Listings valued per batch. Only affects memory, not the result.
     valuation_batch_size: int = 500
+    #: En dessous de cette confiance, l'estimation ne vaut pas un verdict.
+    #: Sur un marche fourni la confiance mesuree va de 0,48 a 0,70 (p5-p90);
+    #: c'est quand la base est presque vide qu'elle tombe sous ce seuil, et
+    #: c'est exactement la qu'un "A FUIR" serait mensonger.
+    min_confidence_for_verdict: float = 0.35
 
     # --- Notifications -----------------------------------------------------
     telegram_bot_token: str | None = None

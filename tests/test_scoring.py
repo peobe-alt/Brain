@@ -97,3 +97,35 @@ def test_a_real_red_flag_still_wins_over_unknown():
     empty = Valuation(0, 0, 0, 0.0, 0, "aucune_reference", 0, 0)
     score = score_deal(listing, empty, analyze_offline(listing).report)
     assert score.verdict == "avoid"
+
+
+def test_a_verdict_needs_more_than_two_references():
+    """Deux comparables ne font pas un marche.
+
+    Un modele rare - quatorze Volvo V70 en vente dans toute la France -
+    donne une estimation a tres faible confiance. Annoncer "A FUIR" sur
+    cette base serait affirmatif et faux; la reponse honnete est "a estimer".
+    """
+    from carexpert.schemas import Fuel, Gearbox, ListingData
+    from carexpert.scoring import score_deal
+    from carexpert.valuation.estimator import Valuation
+
+    listing = ListingData(
+        source="test", source_id="1", url="https://site.fr/1",
+        title="Volvo V70 D5 Summum", price=8900, price_eur=8900,
+        make="Volvo", model="V70", year=2011, km=187000,
+        fuel=Fuel.DIESEL, gearbox=Gearbox.AUTOMATIC,
+    )
+    fragile = Valuation(
+        fair_price_eur=6900, low_eur=6000, high_eur=7800, confidence=0.18,
+        comps_count=2, method="comparables:modele", delta_eur=-2000, delta_pct=-22.5,
+    )
+    solid = Valuation(
+        fair_price_eur=6900, low_eur=6400, high_eur=7400, confidence=0.60,
+        comps_count=18, method="comparables:modele", delta_eur=-2000, delta_pct=-22.5,
+    )
+
+    assert score_deal(listing, fragile, None).verdict == "unknown"
+    assert "2 references" in score_deal(listing, fragile, None).headline
+    # La meme annonce, avec un vrai marche derriere: le verdict revient.
+    assert score_deal(listing, solid, None).verdict == "avoid"

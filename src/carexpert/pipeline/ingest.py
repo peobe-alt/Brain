@@ -115,6 +115,7 @@ def _apply(row: Listing, listing: ListingData) -> None:
     row.seller_type = listing.seller_type.value
     row.seller_name = listing.seller_name
     row.city = listing.city
+    row.postcode = listing.postcode
     row.country = listing.country
     row.photos = [photo.model_dump() for photo in listing.photos]
     row.options = list(listing.options)
@@ -122,6 +123,32 @@ def _apply(row: Listing, listing: ListingData) -> None:
     row.posted_at = listing.posted_at
     row.last_seen = datetime.utcnow()
     row.active = True
+
+
+#: Champs qu'une page d'annonce peut legitimement ne pas repeter alors que
+#: la page de resultats, elle, les portait.
+def complete(base: ListingData, detail: ListingData) -> ListingData:
+    """La page d'annonce fait foi, la liste bouche ses trous.
+
+    Une page de resultats donne souvent le code postal et la date de mise en
+    circulation que la page d'annonce n'expose pas en schema.org. Ecraser
+    l'une par l'autre perd de l'information dans les deux sens; on garde donc
+    la plus riche des deux valeurs, champ par champ.
+    """
+    merged = detail.model_copy(deep=True)
+    for name, value in base.model_dump().items():
+        if name in ("scraped_at", "extra", "photos", "options"):
+            continue
+        if value in (None, "", []) :
+            continue
+        current = getattr(merged, name, None)
+        if current in (None, "", []) or getattr(current, "value", current) == "unknown":
+            setattr(merged, name, getattr(base, name))
+    if len(base.photos) > len(merged.photos):
+        merged.photos = list(base.photos)
+    merged.options = sorted(set(base.options) | set(merged.options))
+    merged.extra = {**base.extra, **detail.extra}
+    return merged
 
 
 def mark_stale(session: Session, source: str, older_than: datetime) -> int:
@@ -165,6 +192,7 @@ def from_row(row: Listing) -> ListingData:
         seller_type=SellerType(row.seller_type),
         seller_name=row.seller_name,
         city=row.city,
+        postcode=row.postcode,
         photos=[Photo(**photo) for photo in (row.photos or []) if isinstance(photo, dict)],
         posted_at=row.posted_at,
         extra=dict(row.raw or {}),

@@ -71,6 +71,20 @@ Chacun vient d'un defaut reel, mesure :
 12. **Le superethanol E85 n'est pas du GPL.** Autre carburant, autre
    reservoir, autre cote, et `Fuel.ETHANOL` existe pour ca. Les confondre
    valorisait 4 des 14 Volvo V70 de la page reelle avec la mauvaise courbe.
+13. **Un verdict exige de quoi le tenir.** Pas de comparables, ou une
+   confiance sous `min_confidence_for_verdict`, et la reponse est `unknown`
+   (A ESTIMER). Sur un marche fourni la confiance mesuree va de 0,48 a 0,70
+   (p5-p90) : le seuil ne se declenche que quand la base est trop mince, ce
+   qui est la regle sur un modele rare.
+14. **Une page de resultats ne donne jamais le descriptif.** Or c'est la que
+   se cachent les pieges ("moteur a revoir", "vendu sans controle
+   technique"). Les meilleures annonces du tour sont donc rouvertes une a une
+   (`_detail_pass`), puis reestimees : la page d'annonce fait foi, la liste
+   bouche ses trous (code postal, mise en circulation).
+15. **Un chemin que les tests n'empruntent jamais finit par casser.** La
+   passe profonde appelait une fonction inexistante : aucun test n'allait
+   jusque-la, faute de cle API. Tout chemin conditionne par une cle ou un
+   reseau doit avoir son test avec un double.
 
 ## Collecte
 

@@ -195,18 +195,34 @@ def score_deal(
     )
 
 
+def _too_thin(valuation: Valuation | None) -> bool:
+    """Is the price estimate too fragile to carry a verdict?
+
+    Two cases, and they are the same mistake at different scales: no
+    comparable at all, and a handful of comparables that agree on nothing.
+    A niche model reaches the second one routinely - there are fourteen Volvo
+    V70 for sale in all of France - and announcing "A FUIR" on two references
+    would be a confident answer built on nothing.
+    """
+    from ..config import get_settings
+
+    if valuation is None or not valuation.comps_count:
+        return True
+    return valuation.confidence < get_settings().min_confidence_for_verdict
+
+
 def _verdict(score: int, report: ExpertReport | None, valuation: Valuation | None) -> str:
     """The verdict, including the honest fourth answer.
 
-    Without comparables there is no market position, and the score sits near
-    its neutral base. Reading that as "avoid" would tell someone to walk away
-    from a sound car merely because the database is empty, which is exactly
-    what happens on the very first analysis. `unknown` says what is true: the
-    advert itself looks fine, we just cannot price it yet.
+    Without a solid market position the score sits near its neutral base.
+    Reading that as "avoid" would tell someone to walk away from a sound car
+    merely because the database is thin, which is exactly what happens on the
+    first analyses. `unknown` says what is true: the advert itself looks
+    fine, we just cannot price it yet.
     """
     if report is not None and report.verdict == "avoid":
         return "avoid"
-    if valuation is None or not valuation.comps_count:
+    if _too_thin(valuation):
         return "unknown"
     if score >= 75:
         return "grab"
@@ -216,7 +232,13 @@ def _verdict(score: int, report: ExpertReport | None, valuation: Valuation | Non
 
 
 def _headline(score: int, net_gain: float, valuation: Valuation | None) -> str:
-    if valuation is None or not valuation.comps_count:
+    if _too_thin(valuation):
+        if valuation is not None and valuation.comps_count:
+            return (
+                f"Seulement {valuation.comps_count} reference"
+                f"{'s' if valuation.comps_count > 1 else ''} comparable"
+                f"{'s' if valuation.comps_count > 1 else ''}: prix non jugeable"
+            )
         return "Pas assez de references pour juger le prix"
     if score >= 80:
         return f"Affaire serieuse: environ {_eur(net_gain)} EUR de gain net estime"

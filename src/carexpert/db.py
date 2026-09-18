@@ -6,6 +6,7 @@ SQLite by default so the tool runs with zero infrastructure; point
 
 from __future__ import annotations
 
+import logging
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Iterator
@@ -22,11 +23,15 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     create_engine,
+    inspect,
     select,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
 from .config import get_settings
+
+log = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
@@ -71,6 +76,7 @@ class Listing(Base):
     seller_type: Mapped[str] = mapped_column(String(10), default="unknown")
     seller_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     city: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    postcode: Mapped[str | None] = mapped_column(String(12), nullable=True)
 
     photos: Mapped[list] = mapped_column(JSON, default=list)
     options: Mapped[list] = mapped_column(JSON, default=list)
@@ -211,8 +217,33 @@ def get_engine():
     return _engine
 
 
+#: Colonnes ajoutees apres coup. `create_all` cree les tables manquantes mais
+#: jamais les colonnes manquantes d'une table existante: sans ce rattrapage,
+#: une base deja constituee casse au premier scan qui ecrit le champ.
+LATE_COLUMNS: dict[str, dict[str, str]] = {
+    "listings": {"postcode": "VARCHAR(12)"},
+}
+
+
 def init_db() -> None:
-    Base.metadata.create_all(get_engine())
+    engine = get_engine()
+    Base.metadata.create_all(engine)
+    _add_late_columns(engine)
+
+
+def _add_late_columns(engine) -> None:
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+    with engine.begin() as connection:
+        for table, columns in LATE_COLUMNS.items():
+            if table not in tables:
+                continue
+            existing = {column["name"] for column in inspector.get_columns(table)}
+            for name, sql_type in columns.items():
+                if name in existing:
+                    continue
+                connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"))
+                log.info("base de donnees: colonne %s.%s ajoutee", table, name)
 
 
 def get_session_factory() -> sessionmaker[Session]:

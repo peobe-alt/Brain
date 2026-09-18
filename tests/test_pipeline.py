@@ -221,3 +221,158 @@ def test_an_empty_channel_list_notifies_nobody(capsys):
     assert get_notifiers([]) == []
     assert [n.name for n in get_notifiers(None)] == ["console"]
     assert capsys.readouterr().out == ""
+
+
+# --- Passe de detail -------------------------------------------------------
+
+
+class ListOnlySource:
+    """Une source qui ne rend, en recherche, que ce qu'une liste contient.
+
+    Pas de descriptif: exactement ce que donne une page de resultats
+    AutoScout24. Le descriptif n'arrive qu'en rouvrant l'annonce.
+    """
+
+    name = "liste"
+
+    def __init__(self) -> None:
+        self.opened: list[str] = []
+
+    def _base(self, source_id: str, price: float) -> "ListingData":
+        from carexpert.schemas import Fuel, Gearbox, ListingData
+
+        return ListingData(
+            source=self.name,
+            source_id=source_id,
+            url=f"https://site.fr/offres/{source_id}",
+            title="Volvo V70 D5 215ch Summum",
+            price=price,
+            make="Volvo",
+            model="V70",
+            year=2011,
+            km=150000,
+            fuel=Fuel.DIESEL,
+            gearbox=Gearbox.AUTOMATIC,
+            postcode="69003",
+        )
+
+    def search_url(self, url: str, limit: int = 100):
+        yield self._base("aaa", 12000)
+        yield self._base("bbb", 11500)
+
+    def search(self, query):
+        return iter(())
+
+    def fetch_detail(self, listing):
+        self.opened.append(listing.source_id)
+        full = listing.model_copy(deep=True)
+        full.description = (
+            "Moteur a revoir, fumee bleue au demarrage, vendu sans controle technique."
+            if listing.source_id == "bbb"
+            else "Carnet d'entretien complet, distribution faite, controle technique vierge."
+        )
+        full.postcode = None          # la page d'annonce ne le repete pas
+        return full
+
+    def close(self) -> None:
+        return None
+
+
+def test_the_shortlist_is_reopened_to_get_its_description(session, monkeypatch):
+    """Sans descriptif, un moteur a revoir passe pour une bonne affaire."""
+    from carexpert.db import Listing
+    from carexpert.pipeline import run as run_module
+    from carexpert.schemas import SearchQuery
+
+    source = ListOnlySource()
+    monkeypatch.setattr(run_module, "get_source", lambda name, **kw: source)
+
+    report = run_module.scan(
+        session,
+        sources=["liste"],
+        query=SearchQuery(make="Volvo", model="V70", limit=10),
+        search_url="https://site.fr/lst/volvo/v70",
+    )
+
+    assert report.detailed == 2
+    assert sorted(source.opened) == ["aaa", "bbb"]
+
+    rows = {row.source_id: row for row in session.query(Listing).all()}
+    assert "distribution faite" in rows["aaa"].description
+    assert "Moteur a revoir" in rows["bbb"].description
+    # Ce que la liste seule donnait n'est pas perdu au passage.
+    assert rows["aaa"].postcode == "69003"
+    assert "detail" in report.summary()
+
+
+def test_an_advert_already_complete_is_not_reopened(session, monkeypatch):
+    """Une source qui ouvre deja chaque annonce ne paie pas deux fois."""
+    from carexpert.pipeline import run as run_module
+    from carexpert.schemas import SearchQuery
+
+    class CompleteSource(ListOnlySource):
+        def search_url(self, url: str, limit: int = 100):
+            for row in super().search_url(url, limit):
+                row.description = "Deuxieme main, entretien suivi en concession."
+                yield row
+
+    source = CompleteSource()
+    monkeypatch.setattr(run_module, "get_source", lambda name, **kw: source)
+
+    report = run_module.scan(
+        session,
+        sources=["liste"],
+        query=SearchQuery(make="Volvo", model="V70", limit=10),
+        search_url="https://site.fr/lst/volvo/v70",
+    )
+
+    assert report.detailed == 0
+    assert source.opened == []
+
+
+def test_the_deep_pass_runs_end_to_end_when_the_model_answers(session, monkeypatch):
+    """Sans ce test, la passe profonde ne tournait jamais en entier.
+
+    Tant que l'expertise retombait sur les regles (pas de cle API), le code
+    d'apres n'etait jamais atteint. Il contenait un appel a une fonction qui
+    n'existait pas: la premiere expertise reelle aurait plante.
+    """
+    from carexpert.expert.analyst import AnalysisResult
+    from carexpert.expert import analyze_offline
+    from carexpert.pipeline import run as run_module
+    from carexpert.schemas import SearchQuery
+
+    source = ListOnlySource()
+    monkeypatch.setattr(run_module, "get_source", lambda name, **kw: source)
+
+    class FakeAnalyst:
+        calls = 0
+
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def analyze(self, listing, valuation=None, **kwargs):
+            FakeAnalyst.calls += 1
+            report = analyze_offline(listing, valuation).report
+            return AnalysisResult(
+                report=report,
+                model="claude-opus-5",
+                photos_analyzed=3,
+                input_tokens=2500,
+                output_tokens=900,
+            )
+
+    monkeypatch.setattr(run_module, "ExpertAnalyst", FakeAnalyst)
+
+    report = run_module.scan(
+        session,
+        sources=["liste"],
+        query=SearchQuery(make="Volvo", model="V70", limit=10),
+        search_url="https://site.fr/lst/volvo/v70",
+        deep=2,
+    )
+
+    assert FakeAnalyst.calls == 2
+    assert report.deep_analyzed == 2
+    assert report.degraded == []
+    assert report.cost.eur > 0

@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Iterable
+from typing import Any, Iterable
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
@@ -40,7 +40,7 @@ from ..scoring import DealScore, score_deal
 from ..sources import get_source
 from ..valuation import estimate
 from ..valuation.estimator import Valuation
-from .ingest import IngestStats, from_row, ingest
+from .ingest import IngestStats, complete, from_row, ingest
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +51,8 @@ class ScanReport:
     valued: int = 0
     #: Adverts left alone because their valuation was still fresh.
     skipped_fresh: int = 0
+    #: Annonces rouvertes pour recuperer ce que la liste ne donne pas.
+    detailed: int = 0
     deep_analyzed: int = 0
     #: Deep analyses that fell back to the rule layer, with the reason why.
     degraded: list[str] = field(default_factory=list)
@@ -68,6 +70,8 @@ class ScanReport:
         ]
         if self.skipped_fresh:
             parts.append(f"{self.skipped_fresh} deja a jour")
+        if self.detailed:
+            parts.append(f"{self.detailed} annonces ouvertes en detail")
         parts += [
             f"{self.deep_analyzed} expertisees en profondeur",
         ]
@@ -98,26 +102,47 @@ def scan(
     """
     report = ScanReport()
 
+    # Les adaptateurs restent ouverts jusqu'a la fin: la passe de detail les
+    # reutilise pour rouvrir les meilleures annonces.
+    adapters: dict[str, Any] = {}
     for name in sources:
         try:
-            adapter = get_source(name)
+            adapters[name] = get_source(name)
         except KeyError as exc:
             report.errors.append(str(exc))
-            continue
-        try:
-            if search_url is not None and hasattr(adapter, "search_url"):
-                listings = list(adapter.search_url(search_url, limit=query.limit))
-            else:
-                listings = list(adapter.search(query))
-            report.collected[name] = ingest(session, listings)
-            log.info("%s: %s", name, report.collected[name].summary())
-        except Exception as exc:  # one broken source must not kill the scan
-            log.exception("source %s en echec", name)
-            report.errors.append(f"{name}: {exc}")
-        finally:
-            adapter.close()
 
-    session.flush()
+    try:
+        for name, adapter in adapters.items():
+            try:
+                if search_url is not None and hasattr(adapter, "search_url"):
+                    listings = list(adapter.search_url(search_url, limit=query.limit))
+                else:
+                    listings = list(adapter.search(query))
+                report.collected[name] = ingest(session, listings)
+                log.info("%s: %s", name, report.collected[name].summary())
+            except Exception as exc:  # one broken source must not kill the scan
+                log.exception("source %s en echec", name)
+                report.errors.append(f"{name}: {exc}")
+
+        session.flush()
+        _run_passes(session, report, adapters, query=query, deep=deep, notify=notify,
+                    revalue_all=revalue_all)
+    finally:
+        for adapter in adapters.values():
+            adapter.close()
+    return report
+
+
+def _run_passes(
+    session: Session,
+    report: ScanReport,
+    adapters: dict[str, Any],
+    *,
+    query: SearchQuery,
+    deep: int,
+    notify: bool,
+    revalue_all: bool,
+) -> None:
 
     # --- Wide pass ---------------------------------------------------------
     touched = set()
@@ -145,6 +170,17 @@ def scan(
         session.flush()
 
     scored.sort(key=lambda item: -item[3].score)
+
+    # --- Detail pass -------------------------------------------------------
+    # Une page de resultats donne le prix, le kilometrage et l'annee, jamais
+    # le descriptif. Or c'est dans le descriptif que se trouvent les pieges
+    # ("moteur a revoir", "vendu sans controle technique"). On rouvre donc
+    # les meilleures annonces du tour, et elles seules.
+    report.detailed = _detail_pass(
+        session, adapters, scored, limit=max(deep, get_settings().detail_top)
+    )
+    if report.detailed:
+        scored.sort(key=lambda item: -item[3].score)
 
     # --- Deep pass ---------------------------------------------------------
     if deep > 0:
@@ -189,7 +225,58 @@ def scan(
     if notify:
         report.alerts_sent = dispatch_alerts(session)
 
-    return report
+
+def _detail_pass(
+    session: Session,
+    adapters: dict[str, Any],
+    scored: list[tuple[Listing, Valuation, ExpertReport, DealScore]],
+    *,
+    limit: int,
+) -> int:
+    """Reopen the shortlist's adverts, then re-value what changed.
+
+    Only adverts collected without a description are reopened: a source that
+    already opens each advert costs nothing here. The advert page wins on
+    every field it fills, the results page keeps the rest (postcode and first
+    registration, which the advert's schema.org often omits).
+    """
+    if limit <= 0 or not adapters:
+        return 0
+
+    done = 0
+    for index, (row, _valuation, _report, _score) in enumerate(list(scored)):
+        if done >= limit:
+            break
+        if row.description:
+            continue
+        adapter = adapters.get(row.source)
+        if adapter is None or not hasattr(adapter, "fetch_detail"):
+            continue
+
+        listed = from_row(row)
+        try:
+            full = adapter.fetch_detail(listed)
+        except Exception as exc:  # une annonce retiree ne doit rien casser
+            log.info("annonce non rouverte (%s): %s", exc, row.url)
+            continue
+        if full is None or not full.description:
+            continue
+
+        ingest(session, [complete(listed, full)])
+        done += 1
+
+        # Le descriptif change les signaux, donc l'estimation et le score.
+        listing = from_row(row)
+        valuation = estimate(session, row)
+        result = analyze_offline(listing, valuation.as_dict())
+        score = score_deal(listing, valuation, result.report,
+                           price_dropped=_dropped(session, row))
+        _persist(session, row, valuation, result.report, score, model=result.model,
+                 photos_analyzed=0)
+        scored[index] = (row, valuation, result.report, score)
+
+    session.flush()
+    return done
 
 
 def _query_conditions(query: SearchQuery) -> list:
@@ -265,6 +352,15 @@ def _price_drops(session: Session, listing_ids: list[int]) -> set[int]:
         first.setdefault(listing_id, price)
         last[listing_id] = price
     return {lid for lid, price in last.items() if price < first.get(lid, price) - 1}
+
+
+def _dropped(session: Session, row: Listing) -> bool:
+    """A-t-elle baisse de prix depuis qu'on la suit ?
+
+    Appelee pour une seule annonce, la ou `_price_drops` traite un lot: les
+    passes de detail et d'expertise revoient les annonces une a une.
+    """
+    return row.id in _price_drops(session, [row.id])
 
 
 def _persist(
