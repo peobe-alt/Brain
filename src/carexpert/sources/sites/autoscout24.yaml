@@ -10,8 +10,26 @@ base_url: https://www.autoscout24.fr
 # DOIVENT etre revalides avant toute collecte reelle (voir docs/02-sources-et-legal.md).
 # La voie fiable au quotidien: construire la recherche dans l'interface du site
 # puis la passer telle quelle a `carexpert scan --url "<url collee>"`.
+# Forme de recherche relevee sur le site:
+#   /lst/<marque>/<modele>?sort=standard&desc=0&ustate=N,U&cy=F
+#                          &damaged_listing=exclude&atype=C
+# Confirmes: le chemin marque/modele, atype (C = voiture), ustate (N neuf,
+# U occasion), cy (pays, avec un code maison), damaged_listing.
+# Encore a confirmer: les bornes de prix, de kilometrage et d'annee.
 verified: false
-search_url: "https://www.autoscout24.fr/lst/{make}/{model}?sort=standard&desc=0&pricefrom={price_min}&priceto={price_max}&kmto={km_max}&fregfrom={year_min}&page={page}"
+search_url: "https://www.autoscout24.fr/lst/{make}/{model}?atype=C&ustate=N%2CU&cy={country}&damaged_listing=exclude&sort=standard&desc=0&pricefrom={price_min}&priceto={price_max}&kmto={km_max}&fregfrom={year_min}&page={page}"
+
+# AutoScout24 n'utilise pas les codes ISO pour les pays.
+country_codes:
+  FR: F
+  DE: D
+  IT: I
+  ES: E
+  BE: B
+  AT: A
+  LU: L
+  NL: NL
+  PL: PL
 # Forme reelle relevee sur des annonces du site:
 #   /offres/<slug>-cat_ma<marque>mo<modele>-<uuid>
 # L'UUID final est l'identifiant de l'annonce. L'exiger evite de collecter

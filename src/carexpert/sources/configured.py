@@ -54,7 +54,12 @@ class ConfiguredSource(SourceAdapter):
         template = self.config.get("search_url")
         if not template:
             return None
+        # Les sites utilisent rarement les codes ISO: la correspondance est
+        # declaree par source dans son YAML.
+        wanted = (query.countries or ["FR"])[0].upper()
+        codes = self.config.get("country_codes") or {}
         values = {
+            "country": codes.get(wanted, wanted),
             "make": _slug(query.make),
             "model": _slug(query.model),
             "keywords": query.keywords or "",

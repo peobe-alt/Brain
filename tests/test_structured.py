@@ -155,3 +155,60 @@ def test_the_configured_pattern_matches_real_adverts():
     for url, _ in AUTOSCOUT_URLS:
         assert regex.search(url), url
     assert not regex.search("https://www.autoscout24.fr/offres/voitures-occasion")
+
+
+# --- Construction des URL de recherche -------------------------------------
+
+def _autoscout():
+    from carexpert.sources import get_source
+
+    return get_source("autoscout24")
+
+
+def test_the_search_url_matches_the_shape_the_site_produces():
+    """Reference relevee dans l'interface du site:
+    /lst/volvo/v70?sort=standard&desc=0&ustate=N,U&cy=F&damaged_listing=exclude&atype=C
+    """
+    from carexpert.schemas import SearchQuery
+
+    source = _autoscout()
+    url = source.build_search_url(SearchQuery(make="Volvo", model="V70", countries=["FR"]), 1)
+    source.close()
+    assert url.startswith("https://www.autoscout24.fr/lst/volvo/v70?")
+    for fragment in ("atype=C", "ustate=N%2CU", "cy=F", "damaged_listing=exclude", "page=1"):
+        assert fragment in url
+
+
+def test_country_codes_are_the_site_s_own_not_iso():
+    from carexpert.schemas import SearchQuery
+
+    source = _autoscout()
+    assert "cy=D" in source.build_search_url(SearchQuery(make="Volvo", countries=["DE"]), 1)
+    assert "cy=E" in source.build_search_url(SearchQuery(make="Volvo", countries=["ES"]), 1)
+    source.close()
+
+
+def test_unset_filters_leave_no_empty_parameters():
+    from carexpert.schemas import SearchQuery
+
+    source = _autoscout()
+    url = source.build_search_url(SearchQuery(make="Volvo", model="V70", countries=["FR"]), 1)
+    source.close()
+    assert "priceto=&" not in url and not url.endswith("priceto=")
+    assert "kmto=" not in url
+    assert "fregfrom=" not in url
+
+
+def test_filters_reach_the_url_when_set():
+    from carexpert.schemas import SearchQuery
+
+    source = _autoscout()
+    url = source.build_search_url(
+        SearchQuery(make="Volvo", model="V70", price_max=15000, km_max=160000,
+                    year_min=2015, countries=["FR"]), 2,
+    )
+    source.close()
+    assert "priceto=15000" in url
+    assert "kmto=160000" in url
+    assert "fregfrom=2015" in url
+    assert "page=2" in url
