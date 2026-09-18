@@ -17,6 +17,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 from rich.markup import escape
+from urllib.parse import urlparse
 from rich.panel import Panel
 from rich.table import Table
 
@@ -50,6 +51,29 @@ def _eur(value: float | None) -> str:
     if value is None:
         return "-"
     return f"{value:,.0f}".replace(",", " ")
+
+
+def _checked_url(value: str | None) -> str | None:
+    """Refuse anything that is not an address, before it costs a request.
+
+    Une chaine comme "URL leparking" partait en requete, echouait, et le
+    diagnostic concluait "le site n'a pas repondu": on accusait le site
+    d'une faute de frappe. Le seul moment ou l'on sait que ce n'est pas une
+    adresse, c'est avant de partir.
+    """
+    if value is None:
+        return None
+    parsed = urlparse(value.strip())
+    if parsed.scheme in ("http", "https") and parsed.netloc:
+        return value.strip()
+    console.print(
+        f"[red]Ce n'est pas une URL:[/red] {escape(value)}\n"
+        "Ouvrez le site, construisez la recherche avec ses filtres, puis copiez "
+        "l'adresse de la barre du navigateur. Elle commence par https://\n"
+        "[dim]Sans URL sous la main, les criteres suffisent: "
+        "--make Renault --model Twingo[/dim]"
+    )
+    raise typer.Exit(2)
 
 
 def _build_query(
@@ -128,6 +152,7 @@ def scan(
     init_db()
     from .pipeline import scan as run_scan
 
+    url = _checked_url(url)
     query = _build_query(make, model, keywords, price_min, price_max, year_min, km_max,
                          fuel, countries, limit)
     with console.status("Collecte et analyse en cours..."):
@@ -378,7 +403,7 @@ def diagnose(
         console.print(f"[red]Source '{source}' inconnue.[/red] Voir : carexpert sources")
         raise typer.Exit(1)
 
-    target = url
+    target = _checked_url(url)
     if target is None:
         adapter = get_source(source, browser=False)
         if isinstance(adapter, ConfiguredSource):
