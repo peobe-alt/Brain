@@ -99,6 +99,14 @@ class DiagnosticReport:
 
     def verdict(self) -> tuple[str, str]:
         """(niveau, phrase): what this source is worth, in one line."""
+        # Le refus leve en cours de rendu n'a ni statut ni corps a montrer:
+        # seul le nom de ce qui a repondu est connu. Le refus constate sur
+        # une reponse HTTP en dit plus, et se traite plus bas.
+        if self.error and self.protection:
+            return "bloque", (
+                f"le site refuse la requete: il repond par {self.protection} "
+                "au lieu de sa page"
+            )
         if self.error:
             return "echec", self.error
         if not self.robots_allows:
@@ -328,7 +336,12 @@ def diagnose_search(
         except RobotsDisallowed:
             report.robots_allows = False
             return report
-        except (BotProtection, BrowserUnavailable, FetchError) as exc:
+        except BotProtection as exc:
+            # Le site a repondu, et il a refuse. Ce n'est pas une panne.
+            report.error = str(exc)
+            report.protection = exc.protection or "protection anti-bot"
+            return report
+        except (BrowserUnavailable, FetchError) as exc:
             report.error = str(exc)
             return report
         report.elapsed_s = time.monotonic() - started

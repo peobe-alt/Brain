@@ -541,7 +541,8 @@ def test_a_protected_site_produces_a_verdict_not_a_traceback():
         def get(self, url: str, *, use_cache: bool = True) -> FetchResult:
             raise BotProtection(
                 f"{url}: le site repond par une protection anti-bot (datadome). "
-                "La collecte s'arrete la, volontairement."
+                "La collecte s'arrete la, volontairement.",
+                protection="datadome",
             )
 
     report = diagnose_search(
@@ -551,11 +552,14 @@ def test_a_protected_site_produces_a_verdict_not_a_traceback():
     )
 
     level, phrase = report.verdict()
-    assert level == "echec"
-    assert "anti-bot" in phrase
+    # Un refus leve pendant le rendu reste un refus, pas une panne.
+    assert level == "bloque"
+    assert "datadome" in phrase
+    assert report.protection == "datadome"
     actions = report.actions()
     assert any("Ne pas insister" in action for action in actions)
     assert any("leparking" in action for action in actions)
+    assert not any("verified: true" in a for a in actions if a.startswith("Passer"))
 
 
 def test_a_failed_diagnosis_never_declares_the_source_usable():

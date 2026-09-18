@@ -48,8 +48,15 @@ class BrowserUnavailable(RuntimeError):
 class BotProtection(RuntimeError):
     """The site answered with a challenge instead of its page.
 
-    Raised, never worked around. The caller reports it and moves on.
+    Raised, never worked around. The caller reports it and moves on. The
+    name travels on the exception rather than only inside its message: a
+    caller that has to parse prose to find out who refused will get it
+    wrong, and report a refusal as a breakdown.
     """
+
+    def __init__(self, message: str, *, protection: str = "") -> None:
+        super().__init__(message)
+        self.protection = protection
 
 
 INSTALL_HINT = (
@@ -211,7 +218,8 @@ class BrowserFetcher(PoliteFetcher):
         if challenge:
             raise BotProtection(
                 f"{url}: le site repond par une protection anti-bot ({challenge}). "
-                "La collecte s'arrete la, volontairement."
+                "La collecte s'arrete la, volontairement.",
+                protection=challenge,
             )
         return FetchResult(url=final_url, status=status or 200, text=html, rendered=True)
 
