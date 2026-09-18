@@ -218,15 +218,26 @@ class DiagnosticReport:
             # fait 170 Ko: ce ne sont pas les selecteurs qui manquent, ce sont
             # les liens qui ne pointent pas sur des annonces. Une page de
             # categorie n'a ni prix ni kilometrage, et n'en aura jamais.
-            return [
+            lines = [
                 "Aucun champ sur aucune annonce: les liens suivis ne sont "
                 "probablement pas des annonces mais des pages de categorie.",
                 f"Verifier en ouvrant: {self.samples[0].url}",
-                f"Si c'est bien une categorie, resserrer `listing_link_pattern` "
-                f"dans sites/{self.source}.yaml.",
-                f"Pour que la page soit relue ici: carexpert diagnose -s {self.source} "
-                f'--url "{self.url}" --save page.html',
             ]
+            if self.suggested_pattern:
+                lines += [
+                    f"Motif deduit de la page elle-meme: {self.suggested_pattern}",
+                    f"Le mettre dans `listing_link_pattern`, sites/{self.source}.yaml, "
+                    "puis relancer ce diagnostic.",
+                ]
+            else:
+                lines.append(
+                    f"Resserrer `listing_link_pattern` dans sites/{self.source}.yaml."
+                )
+            lines.append(
+                f"Pour examiner la page: carexpert diagnose -s {self.source} "
+                f'--url "{self.url}" --save page.html'
+            )
+            return lines
         if level in ("extraction", "partiel"):
             missing = Counter(f for s in self.samples for f in s.missing_critical)
             hints = ", ".join(f"{name} ({count})" for name, count in missing.most_common(4))
@@ -411,6 +422,14 @@ def diagnose_search(
 
         for link in links[:samples]:
             report.samples.append(_diagnose_listing(fetcher, link, source, selectors))
+
+        # Des liens reconnus, et pas un champ derriere: le motif attrape autre
+        # chose que des annonces. La page sait laquelle de ses formes d'URL est
+        # la bonne, elle la repete vingt fois; on la lui demande.
+        if report.samples and not any(sample.filled for sample in report.samples):
+            suggestion, _ = suggest_link_pattern(page.text, url)
+            if suggestion and suggestion != pattern:
+                report.suggested_pattern = suggestion
     finally:
         if owned:
             fetcher.close()

@@ -222,3 +222,28 @@ def test_the_page_can_be_written_out_for_inspection(tmp_path):
                              fetcher=fetcher, save_to=target)
     assert target.read_text(encoding="utf-8") == SEARCH_OK
     assert report.saved_to == str(target)
+
+
+def test_the_page_proposes_the_pattern_its_own_links_repeat():
+    """Le motif attrape des categories; la page sait lequel est le bon.
+
+    Sur une page de resultats, la forme d'URL d'une annonce est par
+    construction la plus repetee. Quand aucun echantillon ne rend un champ,
+    on la demande a la page au lieu de la deviner.
+    """
+    page = "<html><body>" + "".join(
+        f'<a href="/voiture-occasion/annonce/renault-twingo-{i}--{9000000 + i}.html">T</a>'
+        for i in range(12)
+    ) + (
+        '<a href="/voiture-occasion/collection.html">Collection</a>'
+        '<a href="/voiture-occasion/Coupe-occasion.html">Coupe</a>'
+    ) + "</body></html>"
+
+    fetcher = FakeFetcher({"/recherche": page, "/voiture-occasion/": "<html></html>"})
+    report = diagnose_search("https://www.leparking.fr/recherche", source="leparking",
+                             pattern=r"/voiture-occasion/[^\"'?#]+\.html", fetcher=fetcher)
+
+    assert report.samples and not any(s.filled for s in report.samples)
+    assert report.suggested_pattern
+    assert "annonce" in report.suggested_pattern
+    assert any("Motif deduit de la page" in action for action in report.actions())
