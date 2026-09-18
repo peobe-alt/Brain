@@ -127,3 +127,32 @@ def test_pattern_suggestion_stays_silent_without_evidence():
     html = '<html><body><a href="/a">x</a><a href="/b">y</a></body></html>'
     pattern, _ = suggest_link_pattern(html, "https://site.fr/")
     assert pattern is None
+
+
+def test_a_results_page_without_links_but_with_data_is_usable():
+    """AutoScout24: pas un seul href, et pourtant toutes les annonces.
+
+    Sans ce cas, le diagnostic conclut "site rendu en JavaScript, rien a
+    extraire" et on abandonne une source parfaitement lisible.
+    """
+    from pathlib import Path
+
+    html = (Path(__file__).parent / "fixtures" / "autoscout24_search.html").read_text(
+        encoding="utf-8"
+    )
+    fetcher = FakeFetcher({"/lst/": html})
+    report = diagnose_search(
+        "https://www.autoscout24.fr/lst/volvo/v70",
+        source="autoscout24",
+        pattern=r"/offres/[^/?#]+-[0-9a-f]{8}-[0-9a-f-]{27}",
+        fetcher=fetcher,
+    )
+
+    assert report.links_found == 0
+    assert report.results_listings == 3
+    assert report.results_complete == 3
+    assert report.verdict()[0] == "liste"
+    # Une seule requete: aucune annonce n'a ete ouverte pour en arriver la.
+    assert len(fetcher.calls) == 1
+    actions = " ".join(report.actions())
+    assert "JavaScript" in actions and "verified: true" in actions

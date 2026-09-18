@@ -36,6 +36,19 @@ country_codes:
 # les pages de categorie qui vivent aussi sous /offres/.
 listing_link_pattern: "/offres/[^/?#]+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 
+# VERIFIE sur une page de resultats reelle (Volvo V70, France, 14 annonces):
+# les <a> de titre des annonces n'ont AUCUN attribut href, le site l'ajoute
+# en JavaScript. Un collecteur qui suit les liens trouve donc zero annonce
+# sur une page qui en affiche quatorze - et le dit sans erreur.
+# Ce que la page publie en revanche: un JSON-LD
+#   SearchResultsPage -> ItemList -> 14 ListItem
+# avec, par annonce, l'URL, la marque, le modele, le kilometrage, le
+# carburant, la boite, les photos, le prix et le vendeur; et une carte
+# <article id="<uuid>" data-first-registration data-listing-zip-code ...>
+# qui complete la date de mise en circulation et le code postal.
+# D'ou: on lit la page de resultats, on n'ouvre pas les 14 annonces.
+results_page_listings: true
+
 max_pages: 3
 request_delay: 3.0
 requires_js: false

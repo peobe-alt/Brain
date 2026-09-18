@@ -19,8 +19,9 @@ class Fuel(str, Enum):
     HYBRID = "hybrid"           # non rechargeable (HEV / MHEV)
     PHEV = "phev"               # hybride rechargeable
     ELECTRIC = "electric"
-    LPG = "lpg"
-    CNG = "cng"
+    LPG = "lpg"                 # GPL
+    CNG = "cng"                 # GNV
+    ETHANOL = "ethanol"         # superethanol E85 / flexfuel
     OTHER = "other"
     UNKNOWN = "unknown"
 

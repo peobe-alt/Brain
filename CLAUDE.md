@@ -63,6 +63,14 @@ Chacun vient d'un defaut reel, mesure :
    `sw` matche dans `volkswagen`, `import` dans `importante`, et `electrique`
    dans `hayon electrique`. Les negations comptent : `jamais accidente` n'est
    pas `accidente`.
+11. **Zero lien d'annonce ne veut pas dire zero annonce.** Sur AutoScout24 les
+   `<a>` de titre n'ont pas d'attribut `href` : le site l'ajoute en
+   JavaScript. La page publie pourtant ses annonces completes en JSON-LD
+   (`SearchResultsPage` -> `ItemList`). On lit donc la liste d'abord, les
+   liens ensuite. Verifie sur une page reelle : 0 lien, 14 annonces.
+12. **Le superethanol E85 n'est pas du GPL.** Autre carburant, autre
+   reservoir, autre cote, et `Fuel.ETHANOL` existe pour ca. Les confondre
+   valorisait 4 des 14 Volvo V70 de la page reelle avec la mauvaise courbe.
 
 ## Collecte
 

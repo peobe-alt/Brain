@@ -20,11 +20,23 @@ from urllib.parse import parse_qs, parse_qsl, urlencode, urljoin, urlparse, urlu
 from bs4 import BeautifulSoup
 
 from ..normalize.text import parse_km, parse_power_hp, parse_price, parse_registration, parse_year
-from ..schemas import ListingData, Photo
+from ..schemas import ListingData, Photo, SellerType
 
 log = logging.getLogger(__name__)
 
 VEHICLE_TYPES = {"car", "vehicle", "motorizedvehicle", "product", "offer", "motorcycle"}
+
+#: schema.org dit deja si le vendeur est un professionnel. S'en servir evite
+#: de deviner a partir du nom du vendeur, qui ment souvent.
+SELLER_TYPES = {
+    "autodealer": SellerType.PRO,
+    "organization": SellerType.PRO,
+    "localbusiness": SellerType.PRO,
+    "store": SellerType.PRO,
+    "corporation": SellerType.PRO,
+    "person": SellerType.PRIVATE,
+    "individual": SellerType.PRIVATE,
+}
 
 FUEL_HINTS = {
     "diesel": "diesel", "gasoline": "essence", "petrol": "essence", "benzin": "essence",
@@ -189,6 +201,13 @@ def listing_from_jsonld(
     if fuel_text:
         fuel_text = FUEL_HINTS.get(fuel_text.strip().lower(), fuel_text)
 
+    seller_type = SellerType.UNKNOWN
+    if isinstance(seller, dict):
+        for name in _types(seller):
+            if name in SELLER_TYPES:
+                seller_type = SELLER_TYPES[name]
+                break
+
     listing = ListingData(
         source=source,
         source_id=_text(node.get("sku")) or _text(node.get("productID")) or _listing_id(url),
@@ -208,6 +227,7 @@ def listing_from_jsonld(
         color=_text(node.get("color")),
         doors=int(_quantity(node.get("numberOfDoors")) or 0) or None,
         seats=int(_quantity(node.get("seatingCapacity")) or 0) or None,
+        seller_type=seller_type,
         seller_name=_text(seller) if seller else None,
         city=_text((address or {}).get("addressLocality")),
         postcode=_text((address or {}).get("postalCode")),
@@ -346,6 +366,173 @@ def extract_listing_links(html: str, base_url: str, pattern: str) -> list[str]:
         seen.add(key)
         links.append(href)
     return links
+
+
+#: Le code vendeur porte par la carte quand le JSON-LD ne dit rien.
+#: Un code inconnu laisse le champ a UNKNOWN: mieux vaut ne pas savoir que
+#: classer un particulier en professionnel (la cote n'est pas la meme).
+ARTICLE_SELLER_TYPES = {
+    "d": SellerType.PRO, "dealer": SellerType.PRO, "pro": SellerType.PRO,
+    "p": SellerType.PRIVATE, "private": SellerType.PRIVATE, "priv": SellerType.PRIVATE,
+}
+
+#: Attributs `data-*` d'une carte de resultat, par champ de `ListingData`.
+#: Plusieurs noms par champ: les sites ne s'accordent pas sur le vocabulaire.
+ARTICLE_FIELDS: dict[str, tuple[str, ...]] = {
+    "price": ("data-price", "data-price-value", "data-amount"),
+    "km": ("data-mileage", "data-km", "data-kilometers"),
+    "registration": ("data-first-registration", "data-registration", "data-firstregistration"),
+    "postcode": ("data-listing-zip-code", "data-zip-code", "data-zipcode", "data-postcode"),
+    "make": ("data-make", "data-brand"),
+    "model": ("data-model",),
+    "seller": ("data-seller-type", "data-sellertype"),
+    "fuel": ("data-fuel-type", "data-fuel"),
+    "gearbox": ("data-transmission-type", "data-transmission", "data-gearbox"),
+    "power": ("data-power", "data-power-hp"),
+}
+
+
+def find_item_list(nodes: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Find the `ItemList` a results page publishes for its own SEO.
+
+    A search page carries the whole page of adverts in one JSON-LD block,
+    usually as `SearchResultsPage -> mainEntity -> ItemList`. Reading it costs
+    one request for a page of results instead of one request per advert.
+    """
+    for node in nodes:
+        if "itemlist" in _types(node) and node.get("itemListElement"):
+            return node
+    for node in nodes:
+        for key in ("mainEntity", "mainEntityOfPage", "about", "hasPart"):
+            inner = node.get(key)
+            candidates = inner if isinstance(inner, list) else [inner]
+            for candidate in candidates:
+                if isinstance(candidate, dict) and candidate.get("itemListElement"):
+                    return candidate
+    return None
+
+
+def _article_data(html: str) -> dict[str, dict[str, str]]:
+    """Index a results page's cards by advert id, with their `data-*` values.
+
+    The JSON-LD of a results page is complete on price, mileage and seller but
+    silent on the registration date and the postcode. The card markup carries
+    both. Matching the two on the advert id yields a listing good enough to
+    value without opening the advert.
+    """
+    index: dict[str, dict[str, str]] = {}
+    for element in _soup(html).find_all(["article", "li", "div"]):
+        attrs = element.attrs or {}
+        data = {
+            key: str(value).strip()
+            for key, value in attrs.items()
+            if key.startswith("data-") and isinstance(value, str) and value.strip()
+        }
+        if not data:
+            continue
+        keys = [
+            str(attrs.get(name) or "")
+            for name in ("id", "data-guid", "data-listing-id", "data-id", "data-article-id")
+        ]
+        for key in keys:
+            key = key.strip().lower()
+            if not key:
+                continue
+            index.setdefault(key, {}).update(data)
+            match = UUID_RE.search(key)
+            if match:
+                index.setdefault(match.group(0).lower(), {}).update(data)
+    return index
+
+
+def _first(data: dict[str, str], names: tuple[str, ...]) -> str | None:
+    for name in names:
+        value = data.get(name)
+        if value:
+            return value
+    return None
+
+
+def merge_article_data(listing: ListingData, data: dict[str, str]) -> None:
+    """Fill the gaps the JSON-LD leaves, never overwrite what it stated."""
+    if not data:
+        return
+
+    if listing.price is None:
+        listing.price = parse_price(_first(data, ARTICLE_FIELDS["price"]))
+    if listing.km is None:
+        listing.km = parse_km(_first(data, ARTICLE_FIELDS["km"]) or "")
+    if listing.first_registration is None:
+        listing.first_registration = parse_registration(_first(data, ARTICLE_FIELDS["registration"]))
+    if listing.year is None and listing.first_registration is not None:
+        listing.year = listing.first_registration.year
+    if not listing.postcode:
+        listing.postcode = _first(data, ARTICLE_FIELDS["postcode"])
+    if not listing.make:
+        listing.make = _first(data, ARTICLE_FIELDS["make"])
+    if not listing.model:
+        listing.model = _first(data, ARTICLE_FIELDS["model"])
+    if listing.power_hp is None:
+        power = _first(data, ARTICLE_FIELDS["power"])
+        if power:
+            listing.power_hp = parse_power_hp(power)
+    if listing.seller_type is SellerType.UNKNOWN:
+        code = (_first(data, ARTICLE_FIELDS["seller"]) or "").lower()
+        listing.seller_type = ARTICLE_SELLER_TYPES.get(code, SellerType.UNKNOWN)
+
+    # Le libelle du carburant et de la boite part au normaliseur, qui parle
+    # toutes les langues des sites; les codes maison (`b`, `d`) ne lui
+    # apprendraient rien et pollueraient le titre.
+    listing.extra.setdefault("card_data", {k: v[:200] for k, v in list(data.items())[:30]})
+
+
+def extract_listings_from_search(
+    html: str, *, base_url: str, source: str, country: str = "FR"
+) -> list[ListingData]:
+    """Read a whole page of adverts from the results page itself.
+
+    Returns an empty list when the page publishes no `ItemList`; the caller
+    then falls back to harvesting links and opening each advert.
+
+    This path exists because the link-harvesting one silently stops working:
+    on AutoScout24 the advert titles are `<a>` tags with no `href` at all
+    (JavaScript adds it on hydration), so a link harvester finds zero adverts
+    on a page that plainly shows fourteen.
+    """
+    item_list = find_item_list(extract_jsonld(html))
+    if not item_list:
+        return []
+
+    cards = _article_data(html)
+    listings: list[ListingData] = []
+    seen: set[str] = set()
+
+    elements = item_list.get("itemListElement") or []
+    if not isinstance(elements, list):
+        elements = [elements]
+
+    for element in elements:
+        if not isinstance(element, dict):
+            continue
+        node = element.get("item") if isinstance(element.get("item"), dict) else element
+        if not isinstance(node, dict) or not (_types(node) & VEHICLE_TYPES):
+            continue
+
+        raw_url = _text(element.get("url")) or _text(node.get("url")) or _text(element.get("@id"))
+        if not raw_url:
+            continue
+        url = canonical_url(urljoin(base_url, raw_url))
+
+        listing = listing_from_jsonld(node, url=url, source=source, country=country)
+        if listing.source_id in seen:
+            continue
+        seen.add(listing.source_id)
+
+        merge_article_data(listing, cards.get(listing.source_id.lower(), {}))
+        listing.fill_price_eur()
+        listings.append(listing)
+
+    return listings
 
 
 def extract_from_page(

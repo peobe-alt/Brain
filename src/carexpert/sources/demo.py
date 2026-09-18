@@ -43,7 +43,8 @@ CATALOG: list[tuple[str, str, str, int, tuple[Fuel, ...], bool]] = [
 FUEL_LABEL = {
     Fuel.PETROL: "essence", Fuel.DIESEL: "diesel", Fuel.HYBRID: "hybride",
     Fuel.PHEV: "hybride rechargeable", Fuel.ELECTRIC: "electrique",
-    Fuel.LPG: "GPL", Fuel.CNG: "GNV", Fuel.OTHER: "", Fuel.UNKNOWN: "",
+    Fuel.LPG: "GPL", Fuel.CNG: "GNV", Fuel.ETHANOL: "ethanol E85",
+    Fuel.OTHER: "", Fuel.UNKNOWN: "",
 }
 
 CITIES = [

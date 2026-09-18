@@ -25,7 +25,7 @@ from ..normalize import enrich
 from ..schemas import ListingData, SearchQuery
 from .base import SourceAdapter, SourceInfo
 from .fetcher import FetchError, PoliteFetcher, RobotsDisallowed
-from .structured import extract_from_page, extract_listing_links
+from .structured import extract_from_page, extract_listing_links, extract_listings_from_search
 
 log = logging.getLogger(__name__)
 
@@ -100,7 +100,19 @@ class ConfiguredSource(SourceAdapter):
                     return
 
     def search_url(self, url: str, limit: int = 100) -> Iterator[ListingData]:
-        """Crawl one results page and yield the adverts it links to."""
+        """Crawl one results page and yield the adverts it holds.
+
+        Two ways in, tried in that order:
+
+        1. the page's own `ItemList` (schema.org), which carries the whole
+           page of adverts. One request for twenty cars, and it keeps working
+           on sites whose advert links only exist after JavaScript runs;
+        2. failing that, harvest the advert links and open each one.
+
+        The first path returns adverts without their description or their
+        full photo set: enough to value and rank, not enough for the expert
+        pass, which re-opens the shortlist through `fetch_detail`.
+        """
         try:
             page = self._fetcher.get(url)
         except (FetchError, RobotsDisallowed) as exc:
@@ -109,6 +121,25 @@ class ConfiguredSource(SourceAdapter):
         if not page.ok:
             log.warning("%s: HTTP %s sur %s", self.name, page.status, url)
             return
+
+        if self.config.get("results_page_listings", True):
+            rows = extract_listings_from_search(
+                page.text,
+                base_url=url,
+                source=self.name,
+                country=self.config.get("default_country", "FR"),
+            )
+            if _usable(rows):
+                log.info("%s: %s annonces lues sur la page de resultats", self.name, len(rows))
+                for listing in rows[:limit]:
+                    yield enrich(listing)
+                return
+            if rows:
+                log.info(
+                    "%s: la page de resultats liste %s annonces mais sans prix ni "
+                    "kilometrage exploitables; ouverture des annonces une a une.",
+                    self.name, len(rows),
+                )
 
         pattern = self.config.get("listing_link_pattern", r"/\d{5,}")
         links = extract_listing_links(page.text, url, pattern)
@@ -150,6 +181,19 @@ class ConfiguredSource(SourceAdapter):
     def close(self) -> None:
         if self._owns_fetcher:
             self._fetcher.close()
+
+
+#: Part des annonces d'une page de resultats qui doivent porter un prix ET un
+#: kilometrage pour que la page se suffise a elle-meme. En dessous, mieux vaut
+#: payer une requete par annonce que valoriser sur du vide.
+RESULTS_PAGE_QUALITY = 0.5
+
+
+def _usable(listings: list[ListingData]) -> bool:
+    if not listings:
+        return False
+    complete = sum(1 for row in listings if row.price is not None and row.km is not None)
+    return complete >= max(1, int(len(listings) * RESULTS_PAGE_QUALITY))
 
 
 class _Missing(dict):

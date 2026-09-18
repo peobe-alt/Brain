@@ -20,7 +20,12 @@ from urllib.parse import urljoin, urlparse
 from ..normalize import enrich
 from ..schemas import ListingData
 from .fetcher import FetchError, PoliteFetcher, RobotsDisallowed
-from .structured import extract_from_page, extract_jsonld, find_vehicle_node
+from .structured import (
+    extract_from_page,
+    extract_jsonld,
+    extract_listings_from_search,
+    find_vehicle_node,
+)
 
 #: Fields without which a listing is useless downstream.
 CRITICAL_FIELDS = ("price_eur", "km", "year", "make")
@@ -62,6 +67,10 @@ class DiagnosticReport:
     elapsed_s: float = 0.0
     links_found: int = 0
     pattern_used: str = ""
+    #: Annonces lues directement dans le JSON-LD de la page de resultats.
+    results_listings: int = 0
+    results_complete: int = 0
+    results_missing: list[str] = field(default_factory=list)
     suggested_pattern: str | None = None
     js_suspected: bool = False
     samples: list[SampleReport] = field(default_factory=list)
@@ -79,6 +88,13 @@ class DiagnosticReport:
             return "interdit", "le robots.txt du site interdit cette URL"
         if self.status >= 400:
             return "echec", f"le site repond HTTP {self.status}"
+        # La page de resultats se suffit parfois a elle-meme: elle publie ses
+        # annonces en JSON-LD. Dans ce cas l'absence de liens ne prouve rien.
+        if self.results_complete:
+            return "liste", (
+                f"{self.results_listings} annonces lues directement sur la page de "
+                f"resultats, dont {self.results_complete} completes"
+            )
         if self.links_found == 0 and self.js_suspected:
             return "js", "la page de recherche est rendue par JavaScript, rien a extraire en HTTP simple"
         if self.links_found == 0:
@@ -101,6 +117,25 @@ class DiagnosticReport:
                 "Ne pas collecter cette URL.",
                 "Chercher un flux officiel ou une offre professionnelle aupres du site.",
             ]
+        if level == "liste":
+            lines = [
+                "Source exploitable sans ouvrir les annonces: la page de resultats "
+                "publie leurs donnees en JSON-LD.",
+                f"Une requete par page de resultats au lieu de {self.results_listings}: "
+                "moins de charge pour le site, plus de couverture pour vous.",
+            ]
+            if self.results_missing:
+                lines.append(
+                    "Manque sur la liste: " + ", ".join(self.results_missing)
+                    + ". Ces champs viendront de la page d'annonce pour la selection finale."
+                )
+            if self.links_found == 0:
+                lines.append(
+                    "Les liens d'annonce ne sont pas dans le HTML (ajoutes en JavaScript): "
+                    "c'est normal ici, la voie liste ne s'en sert pas."
+                )
+            lines.append(f"Passer `verified: true` dans sites/{self.source}.yaml.")
+            return lines
         if level == "js":
             return [
                 "Passer par les alertes natives du site, puis `carexpert analyse-url` annonce par annonce.",
@@ -226,6 +261,20 @@ def diagnose_search(
         links = extract_listing_links(page.text, url, pattern)
         report.links_found = len(links)
         report.js_suspected = any(marker in page.text for marker in JS_MARKERS)
+
+        # Voie liste: ce que la page de resultats donne sans rien ouvrir.
+        rows = extract_listings_from_search(page.text, base_url=url, source=source)
+        report.results_listings = len(rows)
+        missing: Counter[str] = Counter()
+        for row in rows:
+            enrich(row)
+            absent = [name for name in CRITICAL_FIELDS if not _is_filled(row, name)]
+            missing.update(absent)
+            if not absent:
+                report.results_complete += 1
+        report.results_missing = [name for name, _ in missing.most_common(4)]
+        if report.results_complete:
+            return report
 
         if not links:
             suggestion, count = suggest_link_pattern(page.text, url)

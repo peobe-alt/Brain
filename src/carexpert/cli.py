@@ -336,6 +336,7 @@ def analyse_url(
 
 VERDICT_DIAG = {
     "ok": ("green", "SOURCE EXPLOITABLE"),
+    "liste": ("green", "SOURCE EXPLOITABLE (PAGE DE RESULTATS)"),
     "partiel": ("yellow", "PARTIELLEMENT EXPLOITABLE"),
     "extraction": ("yellow", "EXTRACTION INCOMPLETE"),
     "motif": ("yellow", "MOTIF DE LIEN A CORRIGER"),
@@ -402,6 +403,12 @@ def diagnose(
                              f"en {report.elapsed_s:.1f} s")
     table.add_row("motif de lien", report.pattern_used)
     table.add_row("annonces detectees", str(report.links_found))
+    if report.results_listings:
+        table.add_row(
+            "annonces sur la liste",
+            f"[green]{report.results_listings}[/green] lues sans ouvrir d'annonce "
+            f"({report.results_complete} completes)",
+        )
     if report.suggested_pattern:
         table.add_row("motif suggere", f"[yellow]{report.suggested_pattern}[/yellow]")
     if report.js_suspected:

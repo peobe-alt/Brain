@@ -29,6 +29,7 @@ KM_RATE_BY_FUEL: dict[Fuel, float] = {
     Fuel.ELECTRIC: 0.28,     # battery, not engine wear, drives EV value
     Fuel.LPG: 0.38,
     Fuel.CNG: 0.38,
+    Fuel.ETHANOL: 0.40,      # marche etroit, revente plus difficile
     Fuel.OTHER: 0.35,
     Fuel.UNKNOWN: 0.35,
 }

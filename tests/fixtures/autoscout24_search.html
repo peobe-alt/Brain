@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<!--
+  Extrait reel d'une page de resultats AutoScout24 (Volvo V70, France),
+  reduite a trois annonces sur quatorze et debarrassee de son CSS, de son
+  JavaScript et de ses scripts publicitaires.
+
+  Deux choses sont conservees telles quelles parce que ce sont elles qui
+  comptent:
+    1. le bloc JSON-LD SearchResultsPage -> ItemList, qui contient les
+       annonces completes;
+    2. les balises <a> de titre, QUI N'ONT PAS D'ATTRIBUT href (le site
+       l'ajoute en JavaScript). C'est la raison pour laquelle un collecteur
+       qui suit les liens ne trouve rien sur cette page.
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Volvo V70 occasion - AutoScout24</title>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SearchResultsPage",
+  "mainEntity": {
+    "@type": "ItemList",
+    "numberOfItems": 14,
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "url": "/offres/volvo-v70-ethanol-usine-e85-2-0f-145cv-99350kms-essence-gris-cat_ma73mo2079-58e07244-1f17-499f-aa31-325a482ea607",
+        "item": {
+          "@type": ["Car", "Product"],
+          "name": "Volvo V70 ETHANOL USINE E85 2.0F 145CV 99350KMS !!",
+          "brand": {"@type": "Brand", "name": "Volvo"},
+          "model": "V70",
+          "mileageFromOdometer": {"@type": "QuantitativeValue", "value": 99350, "unitCode": "KMT"},
+          "fuelType": "Essence",
+          "vehicleTransmission": "Boite manuelle",
+          "image": [
+            "https://prod.pictures.autoscout24.net/listing-images/58e07244/1.jpg",
+            "https://prod.pictures.autoscout24.net/listing-images/58e07244/2.jpg"
+          ],
+          "offers": {
+            "@type": "Offer",
+            "price": 10100,
+            "priceCurrency": "EUR",
+            "seller": {
+              "@type": "AutoDealer",
+              "name": "MAVINO",
+              "address": {"@type": "PostalAddress", "addressLocality": "MONTAUBAN", "addressCountry": "FR"}
+            }
+          }
+        }
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "url": "/offres/volvo-v70-d5-215-summum-geartronic-diesel-noir-cat_ma73mo2079-7cf2f649-3e12-4b15-adf5-c446a15c7e9f",
+        "item": {
+          "@type": ["Car", "Product"],
+          "name": "Volvo V70 D5 215ch Summum Geartronic",
+          "brand": {"@type": "Brand", "name": "Volvo"},
+          "model": "V70",
+          "mileageFromOdometer": {"@type": "QuantitativeValue", "value": 187000, "unitCode": "KMT"},
+          "fuelType": "Diesel",
+          "vehicleTransmission": "Boite automatique",
+          "image": ["https://prod.pictures.autoscout24.net/listing-images/7cf2f649/1.jpg"],
+          "offers": {
+            "@type": "Offer",
+            "price": 8900,
+            "priceCurrency": "EUR",
+            "seller": {
+              "@type": "Person",
+              "name": "Particulier",
+              "address": {"@type": "PostalAddress", "addressLocality": "LYON", "addressCountry": "FR"}
+            }
+          }
+        }
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "url": "/offres/volvo-v70-2-4d-momentum-diesel-gris-cat_ma73mo2079-1920dd58-65cb-4eaa-ac78-c0640a0f14ac",
+        "item": {
+          "@type": ["Car", "Product"],
+          "name": "Volvo V70 2.4D Momentum",
+          "brand": {"@type": "Brand", "name": "Volvo"},
+          "model": "V70",
+          "fuelType": "Diesel",
+          "vehicleTransmission": "Boite manuelle",
+          "image": ["https://prod.pictures.autoscout24.net/listing-images/1920dd58/1.jpg"],
+          "offers": {"@type": "Offer", "priceCurrency": "EUR"}
+        }
+      }
+    ]
+  }
+}
+</script>
+</head>
+<body>
+<main>
+  <article id="58e07244-1f17-499f-aa31-325a482ea607"
+           data-price="10100" data-mileage="99350" data-first-registration="01-2009"
+           data-fuel-type="b" data-seller-type="d" data-listing-zip-code="82000"
+           data-make="volvo" data-model="v70" data-position="1">
+    <a class="ListItemTitle_anchor__4TrfR"><h2 class="ListItemTitle_heading__G2W_N">Volvo V70</h2></a>
+    <span>10 100 EUR</span>
+  </article>
+
+  <article id="7cf2f649-3e12-4b15-adf5-c446a15c7e9f"
+           data-price="8900" data-mileage="187000" data-first-registration="06-2011"
+           data-fuel-type="d" data-seller-type="p" data-listing-zip-code="69003"
+           data-make="volvo" data-model="v70" data-position="2">
+    <a class="ListItemTitle_anchor__4TrfR"><h2 class="ListItemTitle_heading__G2W_N">Volvo V70</h2></a>
+    <span>8 900 EUR</span>
+  </article>
+
+  <article id="1920dd58-65cb-4eaa-ac78-c0640a0f14ac"
+           data-price="7250" data-mileage="212400" data-first-registration="03-2008"
+           data-fuel-type="d" data-seller-type="d" data-listing-zip-code="33000"
+           data-make="volvo" data-model="v70" data-position="3">
+    <a class="ListItemTitle_anchor__4TrfR"><h2 class="ListItemTitle_heading__G2W_N">Volvo V70</h2></a>
+    <span>7 250 EUR</span>
+  </article>
+
+  <nav><a href="/lst/volvo/v70?page=2">Page suivante</a></nav>
+</main>
+</body>
+</html>
