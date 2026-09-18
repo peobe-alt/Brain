@@ -85,6 +85,9 @@ class DiagnosticReport:
     js_suspected: bool = False
     samples: list[SampleReport] = field(default_factory=list)
     error: str = ""
+    #: Ce qui a empeche d'aller plus loin sans faire echouer la lecture:
+    #: typiquement un navigateur absent alors que la page en demandait un.
+    note: str = ""
 
     @property
     def usable_samples(self) -> int:
@@ -157,6 +160,15 @@ class DiagnosticReport:
             lines.append(f"Passer `verified: true` dans sites/{self.source}.yaml.")
             return lines
         if level == "js":
+            if self.note:
+                return [
+                    "La page ne porte pas ses annonces et aucun navigateur n'est "
+                    "installe pour aller voir plus loin.",
+                    'Installer le rendu: pip install -e ".[browser]" puis '
+                    "python -m playwright install chromium",
+                    f"Relancer ensuite: carexpert diagnose -s {self.source} "
+                    f'--url "{self.url}" --browser',
+                ]
             return [
                 "Relancer avec `--browser`: la page est peut-etre rendue cote client sans "
                 "embarquer son etat, et un rendu reel tranchera en une commande.",
@@ -309,6 +321,7 @@ def diagnose_search(
         report.links_found = len(links)
         report.js_suspected = any(marker in page.text for marker in JS_MARKERS)
         report.rendered = page.rendered
+        report.note = getattr(fetcher, "escalation_blocked", "")
 
         # Voie liste: ce que la page de resultats donne sans rien ouvrir.
         rows = extract_listings_from_search(page.text, base_url=url, source=source)

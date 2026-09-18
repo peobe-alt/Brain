@@ -144,6 +144,9 @@ class BrowserFetcher(PoliteFetcher):
         self.wait_ms = wait_ms
         self.wait_selector = wait_selector
         self.renders = 0
+        #: Pourquoi l'escalade n'a pas pu avoir lieu, pour que le diagnostic
+        #: le dise au lieu de laisser croire que le site n'a pas repondu.
+        self.escalation_blocked = ""
         self._playwright: Any = None
         self._browser: Any = None
         self._context: Any = None
@@ -151,13 +154,24 @@ class BrowserFetcher(PoliteFetcher):
     # -- transport ---------------------------------------------------------
 
     def _transport(self, url: str) -> FetchResult:
-        if self.escalate:
-            plain = super()._transport(url)
-            if plain.ok and page_carries_adverts(plain.text, url=url):
-                return plain
-            reason = "aucune annonce dans la reponse" if plain.ok else f"HTTP {plain.status}"
-            log.info("%s: %s, passage au rendu navigateur", url, reason)
-        return self._render(url)
+        if not self.escalate:
+            return self._render(url)
+
+        plain = super()._transport(url)
+        if plain.ok and page_carries_adverts(plain.text, url=url):
+            return plain
+        reason = "aucune annonce dans la reponse" if plain.ok else f"HTTP {plain.status}"
+        log.info("%s: %s, passage au rendu navigateur", url, reason)
+        try:
+            return self._render(url)
+        except BrowserUnavailable as exc:
+            # La requete simple a deja ete faite et le site l'a deja payee.
+            # La jeter parce qu'un navigateur manque ferait dire au diagnostic
+            # "le site n'a pas repondu" alors qu'il a repondu: on rend ce
+            # qu'on a, et on dit pourquoi on n'est pas alle plus loin.
+            self.escalation_blocked = str(exc)
+            log.warning("%s: rendu impossible, on garde la reponse simple. %s", url, exc)
+            return plain
 
     def _render(self, url: str) -> FetchResult:
         context = self._ensure_context()

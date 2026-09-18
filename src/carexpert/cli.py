@@ -16,6 +16,7 @@ from typing import Optional
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
@@ -137,9 +138,9 @@ def scan(
 
     console.print(f"\n[bold]{report.summary()}[/bold]")
     for error in report.errors:
-        console.print(f"[red]erreur[/red] {error}")
+        console.print(f"[red]erreur[/red] {escape(error)}")
     for reason in report.degraded:
-        console.print(f"[yellow]repli sur les regles[/yellow] {reason}")
+        console.print(f"[yellow]repli sur les regles[/yellow] {escape(reason)}")
     if report.cost.eur:
         console.print(f"[dim]Expertise approfondie : {report.cost.label()}[/dim]")
     if report.top:
@@ -400,7 +401,7 @@ def diagnose(
 
     level, phrase = report.verdict()
     color, label = VERDICT_DIAG.get(level, ("white", level.upper()))
-    console.print(Panel(phrase, title=f"[{color}]{label}[/]", border_style=color))
+    console.print(Panel(escape(phrase), title=f"[{color}]{label}[/]", border_style=color))
 
     table = Table(header_style="bold", show_header=False, box=None)
     table.add_column("critere", style="dim")
@@ -419,8 +420,10 @@ def diagnose(
             f"[green]{report.results_listings}[/green] lues sans ouvrir d'annonce "
             f"({report.results_complete} completes)",
         )
+    if report.note:
+        table.add_row("non verifie", f"[yellow]{escape(report.note.splitlines()[0])}[/yellow]")
     if report.suggested_pattern:
-        table.add_row("motif suggere", f"[yellow]{report.suggested_pattern}[/yellow]")
+        table.add_row("motif suggere", f"[yellow]{escape(report.suggested_pattern)}[/yellow]")
     if report.extraction_tier:
         table.add_row("lues via", report.extraction_tier)
     if report.rendered:
@@ -453,7 +456,7 @@ def diagnose(
 
     console.print("\n[bold]A faire maintenant[/bold]")
     for action in report.actions():
-        console.print(f"  [cyan]>[/cyan] {action}")
+        console.print(f"  [cyan]>[/cyan] {escape(action)}")
 
 
 @app.command()

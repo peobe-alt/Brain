@@ -590,3 +590,54 @@ def test_a_failed_diagnosis_never_declares_the_source_usable():
     # diagnostic le dit au lieu de conseiller de marquer la source verifiee.
     assert any("pas repondu" in a for a in unreachable.actions())
     assert any("Ne pas passer `verified: true`" in a for a in unreachable.actions())
+
+
+def test_an_install_hint_survives_the_terminal(capsys):
+    """`pip install -e ".[browser]"` affiche `pip install -e "."`.
+
+    Rich lit `[browser]` comme une balise de style et l'efface. Le message
+    qui sort du terminal est alors une commande fausse, qui s'installe sans
+    erreur et sans navigateur. Tout texte venant d'une exception doit etre
+    echappe avant d'etre rendu.
+    """
+    from rich.console import Console
+    from rich.markup import escape
+    from rich.panel import Panel
+
+    from carexpert.sources.browser import INSTALL_HINT
+
+    console = Console(width=100)
+    console.print(Panel(escape(INSTALL_HINT)))
+    assert '".[browser]"' in capsys.readouterr().out
+
+
+def test_a_missing_browser_does_not_throw_away_the_page_already_fetched(leboncoin_html):
+    """La requete simple est deja faite, et le site l'a deja payee.
+
+    La jeter parce que Playwright manque faisait dire au diagnostic "le site
+    n'a pas repondu - HTTP 0, 0 octets" alors que le site avait repondu. Le
+    fetcher rend ce qu'il a, et dit pourquoi il n'est pas alle plus loin.
+    """
+    from carexpert.sources.browser import BrowserFetcher, BrowserUnavailable
+
+    shell = "<html><body><div id='app'></div></body></html>" + "<!-- x -->" * 100
+
+    class _NoPlaywright(BrowserFetcher):
+        def _plain(self, url: str) -> FetchResult:
+            return FetchResult(url=url, status=200, text=shell)
+
+        def _render(self, url: str) -> FetchResult:
+            raise BrowserUnavailable('pip install -e ".[browser]"')
+
+    fetcher = _NoPlaywright(respect_robots=False, delay=0)
+    original = PoliteFetcher._transport
+    PoliteFetcher._transport = _NoPlaywright._plain  # type: ignore[method-assign]
+    try:
+        result = fetcher.get("https://site.fr/recherche", use_cache=False)
+    finally:
+        PoliteFetcher._transport = original  # type: ignore[method-assign]
+
+    assert result.status == 200
+    assert result.text == shell
+    assert result.rendered is False
+    assert "browser" in fetcher.escalation_blocked
