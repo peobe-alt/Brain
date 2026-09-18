@@ -14,4 +14,8 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e ".[dev,photos]"
+      # Le linter tourne avant les tests: c'est lui qui a trouve un appel
+      # a une fonction inexistante dans la passe profonde, qu'aucun test
+      # n'atteignait.
+      - run: ruff check src tests
       - run: pytest -q

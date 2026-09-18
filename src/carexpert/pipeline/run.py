@@ -149,7 +149,11 @@ def scan(
     # --- Deep pass ---------------------------------------------------------
     if deep > 0:
         analyst = ExpertAnalyst()
-        for row, valuation, _, _ in scored[:deep]:
+        shortlist = scored[:deep]
+        # One query for the whole shortlist, as in the wide pass: a price that
+        # already moved is the same buy signal whichever pass observes it.
+        deep_dropped = _price_drops(session, [row.id for row, _, _, _ in shortlist])
+        for row, valuation, _, _ in shortlist:
             listing = from_row(row)
             # `analyze` never raises: a failure comes back degraded so one bad
             # call cannot cost the rest of the batch.
@@ -159,7 +163,7 @@ def scan(
                 continue
             report.cost = report.cost + result.cost()
             score = score_deal(listing, valuation, result.report,
-                               price_dropped=_dropped(session, row))
+                               price_dropped=row.id in deep_dropped)
             _persist(session, row, valuation, result.report, score, model=result.model,
                      photos_analyzed=result.photos_analyzed)
             report.deep_analyzed += 1

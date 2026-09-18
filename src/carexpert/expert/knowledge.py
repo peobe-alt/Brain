@@ -11,7 +11,7 @@ import yaml
 import re
 
 from ..normalize.text import strip_accents
-from ..schemas import Fuel, ListingData
+from ..schemas import ListingData
 
 KNOWLEDGE_DIR = Path(__file__).parent / "knowledge"
 

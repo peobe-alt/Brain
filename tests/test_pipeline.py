@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from carexpert.db import Alert, Listing, Pricepoint, select
+from carexpert.db import Alert, Analysis, Listing, Pricepoint, select
 from carexpert.normalize import enrich
 from carexpert.pipeline import fingerprint, ingest, mark_stale, scan
 from carexpert.pipeline.dedupe import looks_like_same_car
@@ -221,3 +221,56 @@ def test_an_empty_channel_list_notifies_nobody(capsys):
     assert get_notifiers([]) == []
     assert [n.name for n in get_notifiers(None)] == ["console"]
     assert capsys.readouterr().out == ""
+
+
+def _expert_report():
+    from carexpert.expert.schema import ExpertReport
+
+    return ExpertReport(
+        summary="Voiture saine, prix sous le marche, rien de suspect.",
+        condition_score=84, consistency_score=88, photo_findings=[], red_flags=[],
+        strengths=["Carnet complet"], known_issues_to_check=[],
+        questions_to_seller=["La distribution a-t-elle ete faite ?"],
+        negotiation_levers=[], estimated_repairs_eur=0, verdict="grab", confidence=80,
+    )
+
+
+def test_a_successful_deep_pass_goes_all_the_way_through(session, monkeypatch):
+    """The paid path had never been run end to end.
+
+    Every test of the deep pass so far exercised a degraded result, which
+    returns early. The branch taken when Claude actually answers called a
+    function that does not exist, so the first successful expertise of the
+    first real scan would have raised NameError and lost the whole batch.
+    """
+    from carexpert.expert.analyst import AnalysisResult
+    from carexpert.pipeline import run as run_module
+    from carexpert.schemas import SearchQuery
+    from carexpert.sources.demo import DemoSource
+
+    class StubAnalyst:
+        def __init__(self, *args, **kwargs):
+            self.seen = 0
+
+        def analyze(self, listing, **kwargs):
+            self.seen += 1
+            return AnalysisResult(
+                report=_expert_report(), model="claude-test", photos_analyzed=6,
+                input_tokens=40_000, output_tokens=2_000,
+            )
+
+    monkeypatch.setattr(run_module, "ExpertAnalyst", StubAnalyst)
+
+    query = SearchQuery(limit=40, countries=["FR", "DE", "IT", "BE", "ES", "NL"])
+    ingest(session, list(DemoSource(seed=5, size=40).search(query)))
+    session.flush()
+
+    report = run_module.scan(session, sources=[], query=query, deep=3)
+
+    assert report.deep_analyzed == 3
+    assert report.degraded == []
+    assert report.cost.eur > 0                      # le cout est bien compte
+    analysed = session.execute(
+        select(Analysis).where(Analysis.photos_analyzed > 0)
+    ).scalars().all()
+    assert len(analysed) == 3
