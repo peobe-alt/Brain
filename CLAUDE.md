@@ -98,6 +98,14 @@ Chacun vient d'un defaut reel, mesure :
 18. **Un prix qui vient de baisser est ecrit sur la carte.** Le lire evite
    d'attendre un second passage, c'est-a-dire le lendemain, pour voir une
    baisse que le vendeur affiche aujourd'hui.
+19. **Une URL de recherche collee se suit de page en page.** Une recherche
+   Volkswagen Golf en France, c'est 1 849 annonces sur 93 pages : n'en lire
+   qu'une, c'est voir 20 annonces en croyant avoir tout vu. Le parcours
+   s'arrete des qu'une page n'apporte rien de nouveau.
+20. **`canonical_url` ne s'applique qu'aux URL d'annonce.** Sur une URL de
+   recherche, `sort` et `atype` ne sont pas du tracage mais les filtres
+   choisis dans l'interface du site : les retirer change silencieusement la
+   recherche de l'utilisateur.
 
 ## Collecte
 

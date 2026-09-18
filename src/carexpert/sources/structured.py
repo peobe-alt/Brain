@@ -297,7 +297,12 @@ def _listing_id(url: str) -> str:
 
 
 def canonical_url(url: str) -> str:
-    """Same advert, same string: drops the parameters that only track clicks."""
+    """Same advert, same string: drops the parameters that only track clicks.
+
+    For advert URLs only. On a *search* URL, `sort` and `atype` are not
+    tracking: they are the filters the user picked in the site's own
+    interface, and dropping them silently changes the search.
+    """
     parsed = urlparse(url)
     kept = [
         (key, value)

@@ -142,10 +142,21 @@ def test_the_adapter_reads_the_page_instead_of_opening_fourteen_adverts(search_h
     collected = list(source.search_url(SEARCH_URL, limit=50))
 
     assert len(collected) == 3
-    # Une seule requete: c'est tout l'interet, pour le site comme pour nous.
-    assert fetcher.calls == [SEARCH_URL]
+    # Trois annonces, deux requetes: la page de resultats, puis la page 2 qui
+    # renvoie les memes annonces et arrete la. Aucune annonce n'est ouverte.
+    assert fetcher.calls == [SEARCH_URL, SEARCH_URL + "&page=2"]
     assert all(row.source == "autoscout24" for row in collected)
     assert all(row.country == "FR" for row in collected)
+
+
+def test_the_pasted_url_keeps_the_filters_the_user_chose(search_html):
+    """`sort` et `atype` sont des filtres du site, pas du tracage."""
+    fetcher = OnePageFetcher(search_html)
+    source = ConfiguredSource(load_site_configs()["autoscout24"], fetcher=fetcher)
+    list(source.search_url(SEARCH_URL, limit=50))
+
+    for call in fetcher.calls:
+        assert "atype=C" in call and "sort=standard" in call and "cy=F" in call
 
 
 def test_the_adapter_still_honours_the_limit(search_html):
@@ -193,7 +204,13 @@ def test_a_list_without_prices_falls_back_to_opening_the_adverts():
 
     assert len(collected) == 2
     assert all(row.price_eur == 14500 for row in collected)
-    assert fetcher.calls[1:] == ["https://site.fr/ad/1", "https://site.fr/ad/2"]
+    # Chaque annonce n'est ouverte qu'une fois, meme si la page 2 la reliste.
+    assert fetcher.calls == [
+        "https://site.fr/recherche",
+        "https://site.fr/ad/1",
+        "https://site.fr/ad/2",
+        "https://site.fr/recherche?page=2",
+    ]
 
 
 # --- la page Volkswagen Golf (1 849 annonces, 93 pages) -------------------
@@ -292,3 +309,173 @@ def test_the_advertised_cut_seeds_the_price_history(session, golf_html):
 
     quiet = session.query(Listing).filter(Listing.source_id.like("953c73d6%")).one()
     assert session.query(Pricepoint).filter(Pricepoint.listing_id == quiet.id).count() == 1
+
+
+# --- pagination -----------------------------------------------------------
+
+PAGE_TEMPLATE = """<html><head><script type="application/ld+json">
+{{"@context":"https://schema.org","@type":"SearchResultsPage","mainEntity":{{
+ "@type":"ItemList","numberOfItems":40,"itemListElement":[{items}]}}}}
+</script></head><body>{cards}</body></html>"""
+
+ITEM_TEMPLATE = """{{"@type":"ListItem","url":"/offres/golf-cat_ma74mo2084-{uuid}",
+ "item":{{"@type":["Car","Product"],"name":"Volkswagen Golf 1.6 TDI 110",
+  "brand":{{"@type":"Brand","name":"Volkswagen"}},"model":"Golf",
+  "mileageFromOdometer":{{"@type":"QuantitativeValue","value":{km},"unitCode":"KMT"}},
+  "fuelType":"Diesel","vehicleTransmission":"Boite manuelle",
+  "offers":{{"@type":"Offer","price":{price},"priceCurrency":"EUR"}}}}}}"""
+
+CARD_TEMPLATE = (
+    '<article id="{uuid}" data-price="{price}" data-mileage="{km}" '
+    'data-first-registration="01-2016" data-listing-zip-code="69003"></article>'
+)
+
+
+def _page(index: int, size: int = 20) -> str:
+    items, cards = [], []
+    for n in range(size):
+        rank = index * size + n
+        uuid = "%08x-0000-4000-8000-000000000000" % rank
+        items.append(ITEM_TEMPLATE.format(uuid=uuid, km=100000 + rank, price=9000 + rank))
+        cards.append(CARD_TEMPLATE.format(uuid=uuid, km=100000 + rank, price=9000 + rank))
+    return PAGE_TEMPLATE.format(items=",".join(items), cards="".join(cards))
+
+
+class PagedFetcher:
+    """Serves distinct pages, the way a real results page paginates."""
+
+    def __init__(self, pages: int) -> None:
+        self.pages = pages
+        self.calls: list[str] = []
+
+    def get(self, url: str, use_cache: bool = True) -> FetchResult:
+        self.calls.append(url)
+        import re as _re
+
+        match = _re.search(r"[?&]page=(\d+)", url)
+        number = int(match.group(1)) if match else 1
+        if number > self.pages:
+            return FetchResult(url=url, status=200, text=_page(0, size=0))
+        return FetchResult(url=url, status=200, text=_page(number - 1))
+
+
+def test_a_pasted_url_is_followed_beyond_its_first_page():
+    """Une recherche colle une page; le site en a quatre-vingt-treize.
+
+    Sans pagination, coller l'URL d'une recherche Volkswagen Golf ramene
+    20 annonces sur 1 849, et l'outil croit avoir tout vu.
+    """
+    fetcher = PagedFetcher(pages=5)
+    source = ConfiguredSource(
+        {"name": "test", "max_pages": 3, "page_param": "page"}, fetcher=fetcher
+    )
+
+    collected = list(source.search_url("https://site.fr/lst/volkswagen/golf-tous?cy=F"))
+
+    assert len(collected) == 60                       # 3 pages plafonnees par max_pages
+    assert len({row.source_id for row in collected}) == 60
+    assert fetcher.calls == [
+        "https://site.fr/lst/volkswagen/golf-tous?cy=F",
+        "https://site.fr/lst/volkswagen/golf-tous?cy=F&page=2",
+        "https://site.fr/lst/volkswagen/golf-tous?cy=F&page=3",
+    ]
+
+
+def test_pagination_stops_as_soon_as_a_page_brings_nothing():
+    fetcher = PagedFetcher(pages=2)
+    source = ConfiguredSource(
+        {"name": "test", "max_pages": 10, "page_param": "page"}, fetcher=fetcher
+    )
+
+    collected = list(source.search_url("https://site.fr/recherche"))
+
+    assert len(collected) == 40
+    # Deux pages pleines, une troisieme vide qui met fin au parcours.
+    assert len(fetcher.calls) == 3
+
+
+def test_a_url_already_on_page_two_continues_from_there():
+    """L'utilisateur peut coller la page 2: on repart de la, pas du debut."""
+    fetcher = PagedFetcher(pages=9)
+    source = ConfiguredSource(
+        {"name": "test", "max_pages": 2, "page_param": "page"}, fetcher=fetcher
+    )
+
+    list(source.search_url("https://site.fr/recherche?page=4"))
+
+    assert fetcher.calls == [
+        "https://site.fr/recherche?page=4",
+        "https://site.fr/recherche?page=5",
+    ]
+
+
+def test_the_limit_is_honoured_across_pages():
+    fetcher = PagedFetcher(pages=5)
+    source = ConfiguredSource(
+        {"name": "test", "max_pages": 5, "page_param": "page"}, fetcher=fetcher
+    )
+
+    collected = list(source.search_url("https://site.fr/recherche", limit=25))
+
+    assert len(collected) == 25
+    assert len(fetcher.calls) == 2
+
+
+# --- contre un vrai serveur HTTP ------------------------------------------
+
+
+def test_the_whole_crawl_works_against_a_real_server(tmp_path, monkeypatch):
+    """Le parcours complet, robots.txt et rythme poli compris.
+
+    Les doubles ci-dessus verifient la logique; celui-ci verifie qu'elle
+    tient quand il y a vraiment une requete HTTP au bout.
+    """
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from urllib.parse import parse_qs, urlparse
+
+    served: list[str] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            parsed = urlparse(self.path)
+            served.append(self.path)
+            if parsed.path == "/robots.txt":
+                body = b"User-agent: *\nAllow: /\n"
+            else:
+                number = int(parse_qs(parsed.query).get("page", ["1"])[0])
+                body = (_page(number - 1) if number <= 4 else _page(0, size=0)).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):  # pragma: no cover - silence
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host = f"http://127.0.0.1:{server.server_address[1]}"
+
+    monkeypatch.setenv("CAREXPERT_CACHE_DIR", str(tmp_path / "cache"))
+    from carexpert import config
+
+    config.get_settings.cache_clear()
+    try:
+        source = ConfiguredSource(
+            {"name": "test", "max_pages": 10, "request_delay": 0.01},
+            fetcher=None,
+        )
+        collected = list(source.search_url(f"{host}/lst/volkswagen/golf-tous?cy=F"))
+        source.close()
+    finally:
+        server.shutdown()
+        config.get_settings.cache_clear()
+
+    assert len(collected) == 80                         # quatre pages de vingt
+    assert len({row.source_id for row in collected}) == 80
+    assert all(row.price_eur and row.km and row.year for row in collected)
+    assert "/robots.txt" in served                      # demande, et respecte
+    assert sum(1 for path in served if "/lst/" in path) == 5

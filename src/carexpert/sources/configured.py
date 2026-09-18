@@ -18,14 +18,21 @@ import logging
 import re
 from pathlib import Path
 from typing import Any, Iterator
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import yaml
 
+from ..config import get_settings
 from ..normalize import enrich
 from ..schemas import ListingData, SearchQuery
 from .base import SourceAdapter, SourceInfo
 from .fetcher import FetchError, PoliteFetcher, RobotsDisallowed
-from .structured import extract_from_page, extract_listing_links, extract_listings_from_search
+from .structured import (
+    _listing_id,
+    extract_from_page,
+    extract_listing_links,
+    extract_listings_from_search,
+)
 
 log = logging.getLogger(__name__)
 
@@ -84,23 +91,53 @@ class ConfiguredSource(SourceAdapter):
     # -- crawling ----------------------------------------------------------
 
     def search(self, query: SearchQuery) -> Iterator[ListingData]:
-        from ..config import get_settings
-
-        pages = min(self.config.get("max_pages", 3), get_settings().max_pages_per_search)
-        seen = 0
-        for page in range(1, pages + 1):
-            url = self.build_search_url(query, page)
-            if not url:
-                log.warning("%s: aucun modele d'URL de recherche configure", self.name)
-                return
-            for listing in self.search_url(url, limit=query.limit - seen):
-                yield listing
-                seen += 1
-                if seen >= query.limit:
-                    return
+        url = self.build_search_url(query, 1)
+        if not url:
+            log.warning("%s: aucun modele d'URL de recherche configure", self.name)
+            return
+        yield from self.search_url(url, limit=query.limit)
 
     def search_url(self, url: str, limit: int = 100) -> Iterator[ListingData]:
-        """Crawl one results page and yield the adverts it holds.
+        """Crawl a pasted search URL, following its pagination.
+
+        A pasted URL is one page of results, and one page is twenty adverts
+        out of the eighteen hundred the search actually matches. So we walk
+        the pages ourselves, by setting the site's page parameter, and stop
+        as soon as a page brings nothing new.
+        """
+        seen: set[str] = set()
+        pages = min(self.config.get("max_pages", 3), get_settings().max_pages_per_search)
+        # L'URL collee n'est pas retouchee au-dela du numero de page. Sur une
+        # URL de recherche, `sort` et `atype` ne sont pas du tracage: ce sont
+        # les filtres que l'utilisateur a choisis dans l'interface du site.
+        start = _page_number(url, self.page_param)
+
+        for offset in range(pages):
+            target = url if offset == 0 else _with_page(url, self.page_param, start + offset)
+            fresh = 0
+            for listing in self._search_one_page(target, limit - len(seen), seen):
+                if listing.source_id in seen:
+                    continue
+                seen.add(listing.source_id)
+                fresh += 1
+                yield listing
+                if len(seen) >= limit:
+                    return
+            if fresh == 0:
+                # Page vide, page repetee, ou fin des resultats: dans les trois
+                # cas continuer ne ferait que couter des requetes au site.
+                if offset:
+                    log.info("%s: fin des resultats a la page %s", self.name, start + offset)
+                return
+
+    @property
+    def page_param(self) -> str:
+        return self.config.get("page_param", "page")
+
+    def _search_one_page(
+        self, url: str, limit: int, seen: set[str]
+    ) -> Iterator[ListingData]:
+        """One results page, read whole.
 
         Two ways in, tried in that order:
 
@@ -113,6 +150,8 @@ class ConfiguredSource(SourceAdapter):
         full photo set: enough to value and rank, not enough for the expert
         pass, which re-opens the shortlist through `fetch_detail`.
         """
+        if limit <= 0:
+            return
         try:
             page = self._fetcher.get(url)
         except (FetchError, RobotsDisallowed) as exc:
@@ -149,9 +188,16 @@ class ConfiguredSource(SourceAdapter):
                 "resultats en JavaScript, ou le motif de lien a change.",
                 self.name, url,
             )
-        for link in links[:limit]:
+        taken = 0
+        for link in links:
+            if taken >= limit:
+                return
+            # Une annonce deja vue a la page precedente ne se repaie pas.
+            if _listing_id(link) in seen:
+                continue
             listing = self.fetch_listing(link)
             if listing is not None:
+                taken += 1
                 yield listing
 
     def fetch_listing(self, url: str) -> ListingData | None:
@@ -181,6 +227,21 @@ class ConfiguredSource(SourceAdapter):
     def close(self) -> None:
         if self._owns_fetcher:
             self._fetcher.close()
+
+
+def _page_number(url: str, param: str) -> int:
+    """Which page a pasted URL is already on."""
+    for key, value in parse_qsl(urlparse(url).query):
+        if key.lower() == param and value.strip().isdigit():
+            return max(1, int(value.strip()))
+    return 1
+
+
+def _with_page(url: str, param: str, page: int) -> str:
+    parsed = urlparse(url)
+    kept = [(k, v) for k, v in parse_qsl(parsed.query) if k.lower() != param]
+    kept.append((param, str(page)))
+    return urlunparse(parsed._replace(query=urlencode(kept)))
 
 
 #: Part des annonces d'une page de resultats qui doivent porter un prix ET un

@@ -51,7 +51,11 @@ class Settings(BaseSettings):
     request_timeout: float = 20.0
     max_retries: int = 3
     user_agent: str = "CarExpertBot/0.1 (+contact: set CAREXPERT_USER_AGENT)"
-    max_pages_per_search: int = 3
+    #: Une recherche Volkswagen Golf en France, c'est 1 849 annonces sur
+    #: 93 pages. A trois pages on en voyait 60 en croyant avoir tout vu.
+    #: Vingt pages font 400 annonces pour une minute de collecte au rythme
+    #: poli d'une requete toutes les 2,5 secondes.
+    max_pages_per_search: int = 20
     #: Une page de resultats donne le prix, le kilometrage et l'annee, jamais
     #: le descriptif ni toutes les photos. Les meilleures annonces du tour
     #: sont donc rouvertes une a une avant l'expertise. Au-dela d'une

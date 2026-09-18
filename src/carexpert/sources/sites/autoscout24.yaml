@@ -15,8 +15,13 @@ base_url: https://www.autoscout24.fr
 #                          &damaged_listing=exclude&atype=C
 # Confirmes: le chemin marque/modele, atype (C = voiture), ustate (N neuf,
 # U occasion), cy (pays, avec un code maison), damaged_listing.
-# Encore a confirmer: les bornes de prix, de kilometrage et d'annee.
-verified: false
+# Confirmes depuis, sur des URL relevees dans le navigateur:
+#   - la pagination est `&page=N` (page 2 collee depuis le site);
+#   - les codes pays maison (cy=F) et la forme marque/modele.
+# Encore a confirmer: les bornes de prix, de kilometrage et d'annee
+# (pricefrom, priceto, kmto, fregfrom), qui ne servent que si l'utilisateur
+# demande ces filtres. La voie sure reste de coller son URL.
+verified: true
 search_url: "https://www.autoscout24.fr/lst/{make}/{model}?atype=C&ustate=N%2CU&cy={country}&damaged_listing=exclude&sort=standard&desc=0&pricefrom={price_min}&priceto={price_max}&kmto={km_max}&fregfrom={year_min}&page={page}"
 
 # AutoScout24 n'utilise pas les codes ISO pour les pays.
@@ -54,8 +59,9 @@ listing_link_pattern: "/offres/[^/?#]+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a
 #   - la puissance n'est dans aucun attribut, seulement dans le texte de la
 #     carte ("235 kW (320 Ch)");
 #   - une annonce dont le prix vient de baisser affiche son ancien prix.
-# A confirmer encore: la pagination. Les numeros de page sont des <button>,
-# pas des liens, donc l'URL de la page 2 reste a relever dans le navigateur.
+# La pagination, elle, est confirmee: les numeros de page sont des <button>
+# et non des liens, mais cliquer sur "2" donne bien `&page=2`. Une URL collee
+# est donc suivie de page en page, et non lue une seule fois.
 results_page_listings: true
 
 # Codes carburant releves dans la taxonomie que le site publie dans sa propre
@@ -63,7 +69,10 @@ results_page_listings: true
 # M ethanol, 2 electrique/essence, 3 electrique/diesel. Utilises uniquement
 # si le schema.org ne dit rien.
 
-max_pages: 3
+# 93 pages pour une seule recherche Volkswagen Golf en France. Le plafond
+# reel est celui des reglages (max_pages_per_search), plus bas par defaut.
+max_pages: 50
+page_param: page
 request_delay: 3.0
 requires_js: false
 
