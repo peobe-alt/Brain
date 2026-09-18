@@ -294,7 +294,9 @@ def _listing_id(url: str) -> str:
     digits = re.findall(r"\d{5,}", cleaned)
     if digits:
         return max(digits, key=len)
-    return (tail or url)[:120]
+    # `K5L7PC4Q.html` identifie bien une annonce leparking, mais `.html`
+    # n'en fait pas partie: il vient du serveur, pas du catalogue.
+    return re.sub(r"\.[a-z]{2,5}$", "", tail or url)[:120] or (tail or url)[:120]
 
 
 def canonical_url(url: str) -> str:

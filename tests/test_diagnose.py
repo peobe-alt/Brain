@@ -301,17 +301,6 @@ def test_the_declared_search_url_is_read_from_the_site_markup():
     assert declared_search_url(SEARCH_OK) is None
 
 
-LEPARKING_RESULTS = """<html><body>
-<a href="/voiture-occasion-detail/renault-twingo/twingo-2-rip-curl/twingo-ii-1-2-16v-8451234.html">1</a>
-<a href="/voiture-occasion-detail/renault-twingo/twingo-3-zen/twingo-iii-0-9-tce-9912345.html">2</a>
-<a href="/voiture-occasion-detail/renault-twingo/twingo-2-dynamique/twingo-1-5-dci-7723456.html">3</a>
-<a href="/voiture-occasion-detail/renault-twingo/twingo-1-authentique/twingo-1-2-6634567.html">4</a>
-<a href="/voiture-occasion/renault.html">Renault</a>
-<a href="/voiture-occasion/collection.html">Collection</a>
-<a href="/voiture-occasion/Coupe-occasion.html">Coupe</a>
-<a href="/contact.html">Contact</a>
-</body></html>"""
-
 LEPARKING_SEARCH = "https://www.leparking.fr/voiture-occasion/renault-twingo.html"
 
 
@@ -323,12 +312,14 @@ def test_the_inferred_pattern_is_not_tied_to_one_trim():
     compte entre eux. Le gagnant etait la finition la plus representee, et
     le motif propose ne matchait qu'elle.
     """
-    pattern, count = suggest_link_pattern(LEPARKING_RESULTS, LEPARKING_SEARCH)
+    pattern, count = suggest_link_pattern(LEPARKING_REAL, LEPARKING_SEARCH)
 
     assert pattern and count == 4
-    assert "rip-curl" not in pattern
+    # La finition ne doit pas rester dans le motif: elle change a chaque
+    # annonce, c'est le contraire d'une route.
+    assert "authentique" not in pattern and "dynamique" not in pattern
     assert re.search(pattern, "/voiture-occasion-detail/renault-twingo/"
-                              "twingo-3-zen/twingo-iii-0-9-tce-9912345.html")
+                              "renault-twingo-iii-sce-70-zen/M3X9QB2R.html")
 
 
 def test_the_inferred_pattern_is_not_tied_to_the_model_searched():
@@ -338,38 +329,22 @@ def test_the_inferred_pattern_is_not_tied_to_the_model_searched():
     ne varie pas, mais il vient de la recherche, pas de la route du site. Un
     motif qui le fige ne sert qu'a cette recherche-la.
     """
-    pattern, _ = suggest_link_pattern(LEPARKING_RESULTS, LEPARKING_SEARCH)
+    pattern, _ = suggest_link_pattern(LEPARKING_REAL, LEPARKING_SEARCH)
 
     assert "twingo" not in pattern
     assert re.search(pattern, "/voiture-occasion-detail/peugeot-208/"
-                              "208-gt-line/208-puretech-130-3312345.html")
+                              "peugeot-208-puretech-130/A7Z1KD8N.html")
 
 
 def test_the_inferred_pattern_still_refuses_the_category_pages():
     """Ce qui a coute deux tours: `/voiture-occasion/collection.html`."""
-    pattern, _ = suggest_link_pattern(LEPARKING_RESULTS, LEPARKING_SEARCH)
+    pattern, _ = suggest_link_pattern(LEPARKING_REAL, LEPARKING_SEARCH)
 
-    for category in ("/voiture-occasion/collection.html",
-                     "/voiture-occasion/Coupe-occasion.html",
-                     "/voiture-occasion/renault.html",
-                     "/contact.html"):
+    for category in ("/voiture-occasion/renault-twingo.html",
+                     "/tools/A25I41PZ/0/P/PL.html",
+                     "/credit-auto.html",
+                     "/vendez-votre-voiture.html"):
         assert not re.search(pattern, category), category
-
-
-def test_the_shipped_leparking_pattern_matches_adverts_only():
-    """Le motif du depot, pas celui deduit: c'est lui qui tourne en vrai."""
-    from carexpert.sources.configured import load_site_configs
-    from carexpert.sources.structured import extract_listing_links
-
-    pattern = load_site_configs()["leparking"]["listing_link_pattern"]
-    links = extract_listing_links(LEPARKING_RESULTS, LEPARKING_SEARCH, pattern)
-
-    assert len(links) == 4
-    assert all("voiture-occasion-detail" in link for link in links)
-    # Invariant 9: un identifiant par vehicule, pas un identifiant de modele.
-    from carexpert.sources.structured import _listing_id
-
-    assert len({_listing_id(link) for link in links}) == 4
 
 
 def test_a_single_odd_link_does_not_cancel_the_whole_inference():
@@ -396,7 +371,7 @@ def test_the_page_lists_its_own_url_families_when_nothing_matches():
     """"Ouvrir la page et relever la forme des URL" est inutilisable a 476 Ko."""
     from carexpert.sources.diagnose import internal_link_shapes
 
-    shapes = internal_link_shapes(LEPARKING_RESULTS, LEPARKING_SEARCH)
+    shapes = internal_link_shapes(LEPARKING_REAL, LEPARKING_SEARCH)
     families = {shape for shape, _, _ in shapes}
 
     assert "/voiture-occasion-detail/*/*/*" in families
@@ -408,7 +383,7 @@ def test_the_page_lists_its_own_url_families_when_nothing_matches():
 
 
 def test_a_failed_pattern_prints_the_families_to_choose_from():
-    fetcher = FakeFetcher({"/voiture-occasion/": LEPARKING_RESULTS})
+    fetcher = FakeFetcher({"/voiture-occasion/": LEPARKING_REAL})
     report = diagnose_search(LEPARKING_SEARCH, source="leparking",
                              pattern=r"/rien-de-tel/\d+", fetcher=fetcher)
 
@@ -417,3 +392,64 @@ def test_a_failed_pattern_prints_the_families_to_choose_from():
     actions = report.actions()
     assert any("Formes d'URL internes" in action for action in actions), actions
     assert any("voiture-occasion-detail" in action for action in actions), actions
+
+
+#: Forme reelle relevee sur une page de resultats leparking: 75 annonces,
+#: identifiant alphanumerique, et 195 liens vers la recherche elle-meme.
+LEPARKING_REAL = """<html><body>
+<a href="/voiture-occasion-detail/renault-twingo/renault-twingo-ii-1-2-60-authentique/K5L7PC4Q.html">1</a>
+<a href="/voiture-occasion-detail/renault-twingo/renault-twingo-iii-sce-70-zen/M3X9QB2R.html">2</a>
+<a href="/voiture-occasion-detail/renault-twingo/renault-twingo-ii-1-5-dci-dynamique/P8W2NF6T.html">3</a>
+<a href="/voiture-occasion-detail/renault-twingo/renault-twingo-i-1-2-16v/R4J6HV1Y.html">4</a>
+<a href="/voiture-occasion/renault-twingo.html">recherche</a>
+<a href="/tools/A25I41PZ/0/P/PL.html">outil</a>
+<a href="/credit-auto.html">credit</a>
+<a href="/vendez-votre-voiture.html">vendre</a>
+</body></html>"""
+
+
+def test_an_identifier_is_not_always_a_number():
+    """leparking nomme ses annonces `K5L7PC4Q`: lettres et chiffres, 8 signes.
+
+    Trois motifs de lien exigeant des chiffres ont echoue d'affilee sur une
+    page qui affichait pourtant 75 annonces, et la deduction automatique est
+    restee muette pour la meme raison.
+    """
+    pattern, count = suggest_link_pattern(LEPARKING_REAL, LEPARKING_SEARCH)
+
+    assert pattern, "un identifiant alphanumerique reste un identifiant"
+    assert count == 4
+    assert re.search(pattern, "/voiture-occasion-detail/renault-twingo/"
+                              "renault-twingo-iii-sce-70-zen/M3X9QB2R.html")
+    # Et il generalise: ni le modele cherche, ni la finition ne sont figes.
+    assert re.search(pattern, "/voiture-occasion-detail/peugeot-208/"
+                              "peugeot-208-puretech-130/A7Z1KD8N.html")
+    assert not re.search(pattern, "/voiture-occasion/renault-twingo.html")
+
+
+def test_the_shipped_pattern_reads_the_real_page():
+    from carexpert.sources.configured import load_site_configs
+    from carexpert.sources.structured import _listing_id, extract_listing_links
+
+    pattern = load_site_configs()["leparking"]["listing_link_pattern"]
+    links = extract_listing_links(LEPARKING_REAL, LEPARKING_SEARCH, pattern)
+
+    assert len(links) == 4
+    # Invariant 9: un identifiant par vehicule. Ici ce sont les codes du site,
+    # pas la finition qu'ils partagent parfois.
+    assert {_listing_id(link) for link in links} == {
+        "K5L7PC4Q", "M3X9QB2R", "P8W2NF6T", "R4J6HV1Y"
+    }
+    # Les pieges de la meme page: la recherche elle-meme, citee 195 fois, et
+    # un outil dont l'URL porte aussi un code alphanumerique.
+    assert not any("/voiture-occasion/renault-twingo" in link for link in links)
+    assert not any("/tools/" in link for link in links)
+
+
+def test_the_file_extension_is_not_part_of_the_identifier():
+    from carexpert.sources.structured import _listing_id
+
+    base = "https://www.leparking.fr/voiture-occasion-detail/renault-twingo/x/"
+    assert _listing_id(base + "K5L7PC4Q.html") == "K5L7PC4Q"
+    # Et un identifiant sans extension n'est pas ampute pour autant.
+    assert _listing_id(base + "K5L7PC4Q") == "K5L7PC4Q"

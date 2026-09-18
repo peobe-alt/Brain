@@ -26,9 +26,13 @@ search_url: "https://www.leparking.fr/voiture-occasion/{make}-{model}.html?page=
 # Une annonce vit sous `/voiture-occasion-detail/`, une categorie sous
 # `/voiture-occasion/`. Un motif sur le second attrapait `collection.html` et
 # `Coupe-occasion.html`, qui n'ont ni prix ni kilometrage et n'en auront
-# jamais: seize liens reconnus, zero champ extrait. Le nombre long avant
-# `.html` est l'identifiant de l'annonce, distinct par vehicule (invariant 9).
-listing_link_pattern: "/voiture-occasion-detail/[^\"'?#]+-\\d{4,}\\.html"
+# jamais: seize liens reconnus, zero champ extrait.
+#
+# L'identifiant n'est pas un nombre: `K5L7PC4Q`, huit caracteres, lettres et
+# chiffres. Trois motifs exigeant des chiffres ont echoue avant celui-ci sur
+# une page qui affichait pourtant 75 annonces.
+#   /voiture-occasion-detail/renault-twingo/renault-twingo-ii-1-2-60-authentique/K5L7PC4Q.html
+listing_link_pattern: "/voiture-occasion-detail/[^\"'?#]+/[A-Za-z0-9]{5,16}\\.html"
 page_param: page
 max_pages: 10
 request_delay: 3.0

@@ -416,22 +416,54 @@ def _pattern_from_group(group: list[list[str]], searched: set[str]) -> str | Non
         values = {segments[index] for segments in group}
         if len(values) == 1 and not (values & searched):
             parts.append(re.escape(next(iter(values))))
-        elif len(values) == 1:
+            continue
+        if len(values) == 1:
             parts.append(r"[^/]+")
-        elif all(re.fullmatch(r"\d+", value) for value in values):
-            parts.append(r"\d+")
-            has_identifier = True
-        elif _mostly(values, r"\d{4,}"):
-            # La majorite, pas la totalite: une annonce a l'identifiant plus
-            # court que les autres annulait la deduction entiere, et le
-            # diagnostic ne proposait plus rien du tout.
-            parts.append(r"[^/]*\d{4,}[^/]*")
-            has_identifier = True
-        else:
-            parts.append(r"[^/]+")
+            continue
+        pattern, is_identifier = _position_pattern(values)
+        parts.append(pattern)
+        has_identifier = has_identifier or is_identifier
     # Sans identifiant, le motif attrape aussi bien les pages de categorie:
     # c'est exactement le defaut qu'on vient de corriger.
     return "/" + "/".join(parts) if has_identifier else None
+
+
+def _position_pattern(values: set[str]) -> tuple[str, bool]:
+    """A regex for one varying path segment, and whether it identifies.
+
+    An identifier is not necessarily a number. leparking names its adverts
+    `K5L7PC4Q`: eight characters, letters and digits, no separator. Three
+    link patterns in a row demanded digits, and the inference stayed silent
+    for the same reason.
+    """
+    suffix = _common_extension(values)
+    stems = {value[: -len(suffix)] if suffix else value for value in values}
+    tail = re.escape(suffix)
+
+    if all(re.fullmatch(r"\d+", stem) for stem in stems):
+        return r"\d+" + tail, True
+    if _mostly(stems, r"\d{4,}"):
+        # La majorite, pas la totalite: une annonce a l'identifiant plus court
+        # que les autres annulait la deduction entiere.
+        return r"[^/]*\d{4,}[^/]*" + tail, True
+    # Un code compact ou lettres et chiffres se melent: un identifiant, pas
+    # un slug, qui lui porte des tirets et des mots.
+    if all(
+        re.fullmatch(r"[A-Za-z0-9]{5,16}", stem) and re.search(r"\d", stem)
+        and re.search(r"[A-Za-z]", stem)
+        for stem in stems
+    ):
+        return r"[A-Za-z0-9]{5,16}" + tail, True
+    return r"[^/]+", False
+
+
+def _common_extension(values: set[str]) -> str:
+    """The file extension every value shares, if any."""
+    extensions = {
+        match.group(0) if (match := re.search(r"\.[a-z]{2,5}$", value)) else ""
+        for value in values
+    }
+    return extensions.pop() if len(extensions) == 1 else ""
 
 
 def diagnose_search(

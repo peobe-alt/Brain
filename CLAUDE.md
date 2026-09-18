@@ -159,6 +159,17 @@ Chacun vient d'un defaut reel, mesure :
    `SearchAction` de son JSON-LD : `/voiture-occasion/` au singulier. Une
    source qui ne rend rien se verifie d'abord sur ce que le site declare
    de lui-meme, avant de corriger quoi que ce soit chez nous.
+30. **Un identifiant d'annonce n'est pas forcement un nombre.** leparking
+   nomme les siennes `K5L7PC4Q` : huit caracteres, lettres et chiffres, sans
+   separateur. Trois motifs de lien exigeant `\d{4,}` ont echoue d'affilee
+   sur une page qui affichait 75 annonces, et la deduction automatique est
+   restee muette pour la meme raison. Un identifiant, c'est ce qui distingue
+   deux annonces, quel que soit son alphabet.
+31. **Un diagnostic qui dit "ouvrir la page et relever la forme des URL" ne
+   diagnostique rien.** La page fait 476 Ko. Elle connait pourtant ses
+   propres familles d'URL : les compter et en donner un exemple chacune a
+   resolu en un regard ce que trois tours de devinette n'avaient pas trouve.
+   Un outil qui constate doit montrer ce qu'il a vu.
 
 ## Collecte
 
