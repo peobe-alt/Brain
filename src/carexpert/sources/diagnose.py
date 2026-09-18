@@ -124,15 +124,8 @@ class DiagnosticReport:
     def actions(self) -> list[str]:
         """What to do next, concretely."""
         level, _ = self.verdict()
-        if level == "echec" and "anti-bot" in self.error:
-            return [
-                "Le site a repondu par une protection. Ne pas insister: la contourner "
-                "changerait la nature juridique de l'acte.",
-                "Passer par les alertes natives du site, puis `carexpert analyse-url`.",
-                "Ou essayer l'agregateur `leparking`, qui republie une partie de ces "
-                "annonces avec un lien vers la source.",
-                "A l'usage serieux: demander un acces professionnel au site.",
-            ]
+        if level == "echec":
+            return self._failure_actions()
         if level == "interdit":
             return [
                 "Ne pas collecter cette URL.",
@@ -193,6 +186,31 @@ class DiagnosticReport:
         return [
             f"Source exploitable. Passer `verified: true` dans sites/{self.source}.yaml.",
             f'Lancer un vrai scan: carexpert scan --source {self.source} --url "{self.url}" --deep 5',
+        ]
+
+    def _failure_actions(self) -> list[str]:
+        """Quoi faire quand rien n'est sorti, selon ce qui a repondu.
+
+        Ces trois cas tombaient dans le fourre-tout de fin, qui conseille
+        `verified: true`: un diagnostic qui declare exploitable une source
+        injoignable est pire que pas de diagnostic du tout.
+        """
+        blocked = "anti-bot" in self.error or self.status in (401, 403, 429)
+        if blocked:
+            return [
+                "Le site a refuse la requete. Ne pas insister: contourner une "
+                "protection changerait la nature juridique de l'acte.",
+                "Verifier d'abord que ce refus vient bien du site: depuis un reseau "
+                "d'entreprise ou un conteneur, un proxy sortant repond 403 a sa place.",
+                "Sinon: alertes natives du site puis `carexpert analyse-url`, ou "
+                "l'agregateur `leparking` qui republie une partie de ces annonces.",
+                "A l'usage serieux: demander un acces professionnel au site.",
+            ]
+        return [
+            "Le site n'a pas repondu. Verifier l'URL dans un navigateur, et que la "
+            "machine a bien un acces sortant vers ce domaine.",
+            f"Relancer ensuite: carexpert diagnose -s {self.source} --url \"{self.url}\"",
+            "Ne pas passer `verified: true`: rien n'a ete verifie.",
         ]
 
 

@@ -556,3 +556,37 @@ def test_a_protected_site_produces_a_verdict_not_a_traceback():
     actions = report.actions()
     assert any("Ne pas insister" in action for action in actions)
     assert any("leparking" in action for action in actions)
+
+
+def test_a_failed_diagnosis_never_declares_the_source_usable():
+    """Le fourre-tout de `actions()` avalait le niveau "echec".
+
+    Mesure sur une vraie sortie: "SITE INJOIGNABLE" suivi de "Source
+    exploitable. Passer `verified: true`". Marquer verifiee une source dont
+    pas une annonce n'est sortie, c'est ce que le drapeau existe pour
+    empecher.
+    """
+    from carexpert.sources.diagnose import DiagnosticReport
+
+    unreachable = DiagnosticReport(url="https://site.fr/x", source="leboncoin",
+                                   error="echec de recuperation: 403 Forbidden")
+    refused = DiagnosticReport(url="https://site.fr/x", source="leboncoin", status=403)
+
+    for report in (unreachable, refused):
+        actions = report.actions()
+        assert report.verdict()[0] == "echec"
+        # La phrase du fourre-tout, mot pour mot: c'est elle qui sortait.
+        assert not any("Source exploitable" in action for action in actions), actions
+        assert not any(
+            action.startswith("Source exploitable") or action.startswith("Passer `verified")
+            for action in actions
+        ), actions
+
+    # Un refus se nomme pour ce qu'il est, sans accuser le site a tort: un
+    # proxy sortant repond 403 a sa place plus souvent qu'on ne croit.
+    assert any("protection" in a for a in refused.actions())
+    assert any("proxy" in a for a in refused.actions())
+    # Un site qui ne repond pas du tout n'est pas un site qui refuse, et le
+    # diagnostic le dit au lieu de conseiller de marquer la source verifiee.
+    assert any("pas repondu" in a for a in unreachable.actions())
+    assert any("Ne pas passer `verified: true`" in a for a in unreachable.actions())
