@@ -264,3 +264,44 @@ def test_a_proxy_denial_is_not_retried():
     fetcher.close()
 
     assert len(attempts) == 1
+
+
+# --- L'identifiant d'une annonce TheParking --------------------------------
+
+
+def test_the_advert_id_is_the_token_not_the_page_file():
+    """`4V8NK9AT`, pas `4V8NK9AT.html`.
+
+    L'extension appartient a la plomberie du site. La garder stocke un
+    identifiant que le site n'emploie jamais, et fait de `/<id>` et
+    `/<id>.html` deux cles pour une seule voiture.
+    """
+    from carexpert.sources.structured import _listing_id
+
+    base = "https://www.theparking.eu/used-cars-detail/volvo-v70-d4/volvo-v70-2-0-d4"
+    assert _listing_id(f"{base}/4V8NK9AT.html") == "4V8NK9AT"
+    assert _listing_id(f"{base}/4V8NK9AT") == "4V8NK9AT"
+
+
+def test_two_volvo_v70_d4_do_not_collide():
+    """Le segment `volvo-v70-d4` est le slug du MODELE, pas de l'annonce.
+
+    Le lire comme identifiant ferait s'ecraser toutes les V70 D4 du site sur
+    une seule ligne en base, sans le moindre message (invariant 9).
+    """
+    from carexpert.sources.structured import _listing_id
+
+    prefix = "https://www.theparking.eu/used-cars-detail/volvo-v70-d4"
+    first = _listing_id(f"{prefix}/volvo-v70-summum-apk/4V8NK9AT.html")
+    second = _listing_id(f"{prefix}/volvo-v70-momentum-full/7QP2M4XB.html")
+
+    assert first != second
+    assert "volvo" not in first and "volvo" not in second
+
+
+def test_stripping_an_extension_never_empties_an_identifier():
+    """Une URL reduite a `/123456.html` doit garder son identifiant."""
+    from carexpert.sources.structured import _listing_id
+
+    assert _listing_id("https://site.fr/123456.html") == "123456"
+    assert _listing_id("https://site.fr/ABCDEF.html") == "ABCDEF"

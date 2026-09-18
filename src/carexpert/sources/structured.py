@@ -263,6 +263,9 @@ def listing_from_jsonld(
 UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
 ID_PARAMS = ("id", "adid", "listingid", "annonceid", "offerid", "vehicleid")
 
+#: Page extensions belong to the site's plumbing, never to the advert id.
+WEB_EXTENSIONS = (".html", ".htm", ".php", ".aspx", ".asp", ".jsp")
+
 #: Query parameters that identify where a click came from, not what it points
 #: at. Two links to the same advert differ only by these.
 TRACKING_PARAMS = {
@@ -301,7 +304,22 @@ def _listing_id(url: str) -> str:
     digits = re.findall(r"\d{5,}", cleaned)
     if digits:
         return max(digits, key=len)
-    return (tail or url)[:120]
+    return (_without_web_extension(tail) or url)[:120]
+
+
+def _without_web_extension(tail: str) -> str:
+    """`4V8NK9AT.html` -> `4V8NK9AT`.
+
+    TheParking names an advert by an eight-character token and serves it as
+    a page. Keeping the extension makes the stored identifier something the
+    site never uses, and turns `/<id>` and `/<id>.html` into two keys for
+    one car.
+    """
+    lowered = tail.lower()
+    for extension in WEB_EXTENSIONS:
+        if lowered.endswith(extension):
+            return tail[: -len(extension)]
+    return tail
 
 
 def canonical_url(url: str) -> str:

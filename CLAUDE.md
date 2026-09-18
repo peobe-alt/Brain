@@ -59,6 +59,11 @@ Chacun vient d'un defaut reel, mesure :
    *modele*, partage par toutes les Volvo V70 : le lire comme identifiant
    d'annonce fait s'ecraser toutes les V70 sur la meme cle unique. Chercher
    l'UUID, puis un parametre `id` de la query, puis seulement un nombre long.
+   Deuxieme cas mesure, TheParking : dans
+   `/used-cars-detail/volvo-v70-d4/<titre>/4V8NK9AT.html`, l'identifiant
+   n'est meme pas un nombre, et `volvo-v70-d4` est la encore le modele. Le
+   motif generique `/\d{5,}` n'y trouve donc zero annonce, sans erreur. On
+   lit le dernier segment, extension de page retiree.
 10. **La detection de mots-cles se fait sur des frontieres de mots.** Sinon
    `sw` matche dans `volkswagen`, `import` dans `importante`, et `electrique`
    dans `hayon electrique`. Les negations comptent : `jamais accidente` n'est

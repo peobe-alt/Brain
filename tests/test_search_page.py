@@ -229,5 +229,72 @@ def test_theparking_declares_no_unverified_search_template():
     assert config["verified"] is False
     assert config.get("search_url") is None
     assert config["requires_js"] is True
-    # Absent, pas vide: voir test_an_empty_link_pattern_does_not_collect_every_link.
-    assert "listing_link_pattern" not in config
+
+
+# Annonce reelle du site, relevee a la main. Le reste du fichier en depend:
+# elle est la seule preuve que les pages d'annonce sont servies par le
+# serveur, la recherche restant derriere son `#!`.
+THEPARKING_AD = (
+    "https://www.theparking.eu/used-cars-detail/volvo-v70-d4"
+    "/volvo-v70-2-0-d4-summum-leer-nette-auto-goed-onderhouden-apk"
+    "/4V8NK9AT.html"
+)
+
+
+def test_the_generic_pattern_finds_nothing_on_theparking():
+    r"""Pourquoi ce site a besoin de son propre motif.
+
+    L'identifiant est `4V8NK9AT`, pas un nombre: le defaut `/\d{5,}` ne
+    trouve aucune annonce sur une page qui en est pleine, et le dit sans
+    erreur.
+    """
+    from carexpert.sources.configured import DEFAULT_LINK_PATTERN
+
+    html = f'<html><body><a href="{THEPARKING_AD}">annonce</a></body></html>'
+    assert extract_listing_links(html, "https://www.theparking.eu/",
+                                 DEFAULT_LINK_PATTERN) == []
+
+
+def test_theparking_pattern_keeps_adverts_and_drops_the_rest():
+    from carexpert.sources.configured import link_pattern
+
+    pattern = link_pattern(load_site_configs()["theparking"])
+    html = f"""<html><body>
+      <a href="{THEPARKING_AD}">annonce</a>
+      <a href="/used-cars/V70.html">recherche</a>
+      <a href="/used-cars-detail/volvo-v70-d4/">categorie du modele</a>
+      <a href="/used-cars-detail/volvo-v70-d4/volvo-v70/index.html">index</a>
+      <a href="/fr/aide.html">aide</a>
+    </body></html>"""
+
+    assert extract_listing_links(html, "https://www.theparking.eu/", pattern) == [
+        THEPARKING_AD
+    ]
+
+
+THEPARKING_AD_PAGE = """<html><head><script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Car",
+ "name":"Volvo V70 2.0 D4 Summum","brand":{"@type":"Brand","name":"Volvo"},
+ "model":"V70","vehicleModelDate":"2014","fuelType":"diesel",
+ "mileageFromOdometer":{"@type":"QuantitativeValue","value":"196000","unitCode":"KMT"},
+ "offers":{"@type":"Offer","price":"11950","priceCurrency":"EUR"}}
+</script></head><body>annonce</body></html>"""
+
+
+def test_a_theparking_advert_comes_out_with_the_site_own_id():
+    """Bout en bout sur la forme d'URL reelle, avec la config du YAML.
+
+    Le balisage, lui, est le notre: le site n'a pas pu etre joint. Ce test
+    verifie donc notre moitie du contrat (URL, identifiant, extraction), pas
+    ce que TheParking publie.
+    """
+    fetcher = OnePageFetcher(THEPARKING_AD_PAGE)
+    source = ConfiguredSource(load_site_configs()["theparking"], fetcher=fetcher)
+
+    listing = source.fetch_listing(THEPARKING_AD)
+
+    assert listing is not None
+    assert listing.source == "theparking"
+    assert listing.source_id == "4V8NK9AT"      # ni le slug du modele, ni `.html`
+    assert listing.price_eur == 11950
+    assert listing.km == 196000
