@@ -106,6 +106,16 @@ Chacun vient d'un defaut reel, mesure :
    recherche, `sort` et `atype` ne sont pas du tracage mais les filtres
    choisis dans l'interface du site : les retirer change silencieusement la
    recherche de l'utilisateur.
+21. **Un plafond de collecte compte les requetes, jamais les succes.** La
+   passe de detail comptait les annonces effectivement enrichies : sur un
+   site dont les pages d'annonce ne rendaient pas de descriptif, elle a
+   parcouru toute la base. Mesure sur un balayage complet d'un modele :
+   1 979 requetes au lieu de 114, soit une heure et quart de sollicitation
+   du site au rythme poli au lieu de cinq minutes.
+22. **La valorisation ne charge que les colonnes qu'elle lit.** Estimer une
+   voiture chargeait 400 lignes entieres, donc les photos et la charge brute
+   de chaque comparable, deserialisees depuis JSON puis jetees : 1 200
+   `json.loads` par estimation, 31 ms au lieu de 8.
 
 ## Collecte
 

@@ -200,3 +200,40 @@ def test_a_real_car_is_never_priced_against_invented_ones(session):
     assert valuation.comps_count > 0
     # Les fausses Golf a 4 000 EUR ne tirent pas l'estimation vers le bas.
     assert valuation.fair_price_eur > 9000
+
+
+def test_valuation_does_not_load_what_it_never_reads(session):
+    """Mesure : 31 ms par estimation sur 1 860 annonces d'un meme modele.
+
+    Chaque estimation chargeait 400 lignes completes, donc deserialisait
+    depuis JSON les photos et la charge brute de chaque comparable pour les
+    jeter aussitot : 1 200 `json.loads` par estimation, dont les deux tiers
+    inutiles. En ne lisant que les colonnes dont `Facts` a besoin, 8 ms.
+    """
+    from carexpert.db import Listing
+    from carexpert.pipeline.ingest import ingest
+    from carexpert.schemas import Fuel, Gearbox, ListingData, Photo
+    from carexpert.valuation.comps import FACTS_COLUMNS, find_comparables, to_facts
+
+    photos = [Photo(url=f"https://site.fr/img{i}.jpg") for i in range(30)]
+    ingest(session, [
+        ListingData(
+            source="autoscout24", source_id=f"g{i}", url=f"https://site.fr/{i}",
+            title="Volkswagen Golf 1.6 TDI 110", price=9000 + i, price_eur=9000 + i,
+            make="Volkswagen", model="Golf", year=2016, km=100000 + 700 * i,
+            fuel=Fuel.DIESEL, gearbox=Gearbox.MANUAL, photos=list(photos),
+            extra={"payload": "x" * 2000},
+        )
+        for i in range(60)
+    ])
+    session.flush()
+
+    names = {column.key for column in FACTS_COLUMNS}
+    assert "photos" not in names and "raw" not in names
+    assert "options" in names          # la valorisation, elle, s'en sert
+
+    target = session.query(Listing).filter(Listing.source_id == "g0").one()
+    comps, tier = find_comparables(session, to_facts(target), min_count=8)
+    assert len(comps) >= 8
+    assert all(c.make == "Volkswagen" and c.price_eur for c in comps)
+    assert all(c.listing_id and c.fingerprint for c in comps)

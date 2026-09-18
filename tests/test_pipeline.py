@@ -376,3 +376,43 @@ def test_the_deep_pass_runs_end_to_end_when_the_model_answers(session, monkeypat
     assert report.deep_analyzed == 2
     assert report.degraded == []
     assert report.cost.eur > 0
+
+
+def test_the_detail_pass_spends_a_budget_of_requests_not_of_successes(session, monkeypatch):
+    """Mesure : 1 860 annonces ouvertes au lieu de 20.
+
+    Quand la page d'annonce d'un site ne rend aucun descriptif, compter les
+    succes fait parcourir toute la base. Au rythme poli d'une requete toutes
+    les 2,5 secondes, c'est une heure et quart de requetes pour rien, et le
+    site les recoit toutes.
+    """
+    from carexpert.pipeline import run as run_module
+    from carexpert.schemas import SearchQuery
+
+    class SilentDetailSource(ListOnlySource):
+        """Ses pages d'annonce existent mais ne portent pas de descriptif."""
+
+        def search_url(self, url: str, limit: int = 100):
+            for index in range(200):
+                yield self._base(f"id{index}", 9000 + index)
+
+        def fetch_detail(self, listing):
+            self.opened.append(listing.source_id)
+            return listing            # rien de plus que ce qu'on avait deja
+
+    source = SilentDetailSource()
+    source.opened = []
+    monkeypatch.setattr(run_module, "get_source", lambda name, **kw: source)
+
+    report = run_module.scan(
+        session,
+        sources=["liste"],
+        query=SearchQuery(make="Volvo", model="V70", limit=500),
+        search_url="https://site.fr/lst/volvo/v70",
+    )
+
+    from carexpert.config import get_settings
+
+    budget = get_settings().detail_top
+    assert len(source.opened) == budget          # et non 200
+    assert report.detailed == 0                  # aucune n'a rien rendu

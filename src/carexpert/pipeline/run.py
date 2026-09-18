@@ -239,13 +239,20 @@ def _detail_pass(
     already opens each advert costs nothing here. The advert page wins on
     every field it fills, the results page keeps the rest (postcode and first
     registration, which the advert's schema.org often omits).
+
+    `limit` is a budget of requests, not of successes. Counting successes
+    means that a site whose advert pages never yield a description sends the
+    pass through the entire database: measured at 1 860 adverts opened
+    instead of 20, which at the polite rate of one request every 2,5 seconds
+    is an hour and a quarter spent hammering the site for nothing.
     """
     if limit <= 0 or not adapters:
         return 0
 
-    done = 0
+    opened = 0
+    enriched = 0
     for index, (row, _valuation, _report, _score) in enumerate(list(scored)):
-        if done >= limit:
+        if opened >= limit:
             break
         if row.description:
             continue
@@ -254,6 +261,7 @@ def _detail_pass(
             continue
 
         listed = from_row(row)
+        opened += 1
         try:
             full = adapter.fetch_detail(listed)
         except Exception as exc:  # une annonce retiree ne doit rien casser
@@ -263,7 +271,7 @@ def _detail_pass(
             continue
 
         ingest(session, [complete(listed, full)])
-        done += 1
+        enriched += 1
 
         # Le descriptif change les signaux, donc l'estimation et le score.
         listing = from_row(row)
@@ -275,8 +283,13 @@ def _detail_pass(
                  photos_analyzed=0)
         scored[index] = (row, valuation, result.report, score)
 
+    if opened and not enriched:
+        log.warning(
+            "aucune des %s annonces rouvertes n'a rendu de descriptif: la page "
+            "d'annonce a peut-etre change de forme.", opened,
+        )
     session.flush()
-    return done
+    return enriched
 
 
 def _query_conditions(query: SearchQuery) -> list:

@@ -69,6 +69,31 @@ def to_facts(obj: ListingData | Listing) -> Facts:
     )
 
 
+#: Exactement les colonnes dont `Facts` a besoin. Charger la ligne entiere
+#: revient a deserialiser depuis JSON les photos et la charge brute de chaque
+#: comparable pour les jeter aussitot: mesure a 1 200 `json.loads` par
+#: estimation, dont les deux tiers pour des champs que la valorisation ne lit
+#: jamais.
+FACTS_COLUMNS = (
+    Listing.id, Listing.source, Listing.url, Listing.title, Listing.fingerprint,
+    Listing.make, Listing.model, Listing.year, Listing.km, Listing.fuel,
+    Listing.gearbox, Listing.body, Listing.options, Listing.price_eur,
+    Listing.country, Listing.seller_type,
+)
+
+
+def _facts_from_row(row: Any, this_year: int) -> Facts:
+    age = max(0.0, this_year - row.year + 0.5) if row.year else None
+    return Facts(
+        make=row.make, model=row.model, year=row.year, age_years=age, km=row.km,
+        fuel=Fuel(row.fuel), gearbox=Gearbox(row.gearbox), body=row.body,
+        options=list(row.options or []), price_eur=row.price_eur,
+        country=row.country, seller_type=SellerType(row.seller_type),
+        listing_id=row.id, source=row.source, url=row.url, title=row.title,
+        fingerprint=row.fingerprint or "",
+    )
+
+
 #: (tier name, year tolerance, mileage tolerance, match fuel, match gearbox, same country)
 TIERS: list[tuple[str, int, float, bool, bool, bool]] = [
     ("strict",          1, 0.30, True,  True,  True),
@@ -102,6 +127,7 @@ def find_comparables(
     best: list[Facts] = []
     best_tier = "aucun"
     seen_since = datetime.utcnow() - timedelta(days=max_age_days)
+    this_year = date.today().year
 
     for tier, year_tol, km_tol, match_fuel, match_gearbox, same_country in TIERS:
         conditions: list[Any] = [
@@ -134,9 +160,11 @@ def find_comparables(
         if same_country:
             conditions.append(Listing.country == target.country)
 
-        rows = session.execute(select(Listing).where(and_(*conditions)).limit(400)).scalars().all()
+        rows = session.execute(
+            select(*FACTS_COLUMNS).where(and_(*conditions)).limit(400)
+        ).all()
         candidates = deduplicate(
-            [to_facts(row) for row in rows],
+            [_facts_from_row(row, this_year) for row in rows],
             exclude_fingerprint=target.fingerprint,
         )
         if len(candidates) >= min_count:
