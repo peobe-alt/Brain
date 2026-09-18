@@ -17,6 +17,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 from rich.markup import escape
+from pathlib import Path
 from urllib.parse import urlparse
 from rich.panel import Panel
 from rich.table import Table
@@ -388,6 +389,9 @@ def diagnose(
     model: Optional[str] = typer.Option(None, "--model"),
     samples: int = typer.Option(3, "--samples", help="Nombre d'annonces ouvertes pour verification."),
     browser: Optional[bool] = typer.Option(None, "--browser/--no-browser", help="Autoriser un rendu navigateur quand la page revient sans annonces (demande l'extra 'browser')."),
+    save: Optional[Path] = typer.Option(
+        None, "--save", help="Ecrire la page lue dans ce fichier, pour l'examiner."
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
     """Verifier qu'une source fonctionne vraiment, et dire quoi corriger sinon."""
@@ -423,6 +427,7 @@ def diagnose(
             selectors=config.get("selectors"),
             samples=samples,
             fetcher=fetcher_for(config, browser=browser),
+            save_to=save,
         )
 
     level, phrase = report.verdict()
@@ -446,6 +451,8 @@ def diagnose(
             f"[green]{report.results_listings}[/green] lues sans ouvrir d'annonce "
             f"({report.results_complete} completes)",
         )
+    if report.saved_to:
+        table.add_row("page ecrite", f"[green]{escape(report.saved_to)}[/green]")
     if report.protection:
         table.add_row("refus", f"[red]{escape(report.protection)}[/red]")
     if report.note:

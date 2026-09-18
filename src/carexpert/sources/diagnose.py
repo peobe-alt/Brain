@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 import time
+from pathlib import Path
 from collections import Counter
 from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlparse
@@ -88,6 +89,8 @@ class DiagnosticReport:
     #: Ce qui a empeche d'aller plus loin sans faire echouer la lecture:
     #: typiquement un navigateur absent alors que la page en demandait un.
     note: str = ""
+    #: Ou la page lue a ete ecrite, quand `--save` le demande.
+    saved_to: str = ""
     #: La protection qui a repondu a la place de la page, nommee. Un refus
     #: rendu comme "HTTP 403" se lit comme une panne, alors que c'est une
     #: decision du site: les deux ne se corrigent pas pareil.
@@ -208,6 +211,22 @@ class DiagnosticReport:
                 "Ouvrir la page dans un navigateur et relever la forme des URL d'annonce.",
                 f"Renseigner `listing_link_pattern` dans sites/{self.source}.yaml.",
             ]
+        if level == "extraction" and self.samples and all(
+            not sample.filled for sample in self.samples
+        ):
+            # Pas un champ sur aucune annonce, alors que la page de resultats
+            # fait 170 Ko: ce ne sont pas les selecteurs qui manquent, ce sont
+            # les liens qui ne pointent pas sur des annonces. Une page de
+            # categorie n'a ni prix ni kilometrage, et n'en aura jamais.
+            return [
+                "Aucun champ sur aucune annonce: les liens suivis ne sont "
+                "probablement pas des annonces mais des pages de categorie.",
+                f"Verifier en ouvrant: {self.samples[0].url}",
+                f"Si c'est bien une categorie, resserrer `listing_link_pattern` "
+                f"dans sites/{self.source}.yaml.",
+                f"Pour que la page soit relue ici: carexpert diagnose -s {self.source} "
+                f'--url "{self.url}" --save page.html',
+            ]
         if level in ("extraction", "partiel"):
             missing = Counter(f for s in self.samples for f in s.missing_critical)
             hints = ", ".join(f"{name} ({count})" for name, count in missing.most_common(4))
@@ -315,6 +334,7 @@ def diagnose_search(
     selectors: dict | None = None,
     samples: int = 3,
     fetcher: PoliteFetcher | None = None,
+    save_to: Path | None = None,
 ) -> DiagnosticReport:
     """Check one search URL end to end and say what to fix."""
     from .structured import extract_jsonld, extract_listing_links, find_item_list
@@ -345,6 +365,11 @@ def diagnose_search(
             report.error = str(exc)
             return report
         report.elapsed_s = time.monotonic() - started
+        if save_to is not None:
+            # Adapter un lecteur demande la page, pas son resume. Sans ca, la
+            # seule facon de la transmettre est de la recopier a la main.
+            save_to.write_text(page.text, encoding="utf-8")
+            report.saved_to = str(save_to)
         report.status = page.status
         report.page_bytes = len(page.text)
         report.note = getattr(fetcher, "escalation_blocked", "")

@@ -169,3 +169,56 @@ def test_a_results_page_without_links_but_with_data_is_usable():
     assert len(fetcher.calls) == 1
     actions = " ".join(report.actions())
     assert "JavaScript" in actions and "verified: true" in actions
+
+
+def test_zero_fields_everywhere_points_at_the_links_not_the_selectors(tmp_path):
+    """Mesure sur leparking: page de 174 Ko, 16 liens, 0 champ sur 3 annonces.
+
+    Le diagnostic conseillait d'ajouter des selecteurs CSS. Mauvais conseil:
+    les liens suivis etaient des pages de categorie (/voiture-occasion/
+    Coupe-...html), et une categorie n'a ni prix ni kilometrage, quels que
+    soient les selecteurs qu'on lui applique.
+    """
+    from carexpert.sources.diagnose import DiagnosticReport, SampleReport
+
+    report = DiagnosticReport(url="https://www.leparking.fr/x", source="leparking")
+    report.status = 200
+    report.page_bytes = 174_425
+    report.links_found = 16
+    report.samples = [
+        SampleReport(url="https://www.leparking.fr/voiture-occasion/Coupe-occasion.html",
+                     status=200, missing_critical=["price_eur", "km", "year", "make"]),
+        SampleReport(url="https://www.leparking.fr/voiture-occasion/SUV-occasion.html",
+                     status=200, missing_critical=["price_eur", "km", "year", "make"]),
+    ]
+
+    actions = report.actions()
+    assert report.verdict()[0] == "extraction"
+    assert any("pages de categorie" in action for action in actions), actions
+    assert any("listing_link_pattern" in action for action in actions), actions
+    assert not any("section `selectors`" in action for action in actions), actions
+
+
+def test_partly_filled_samples_still_point_at_the_selectors():
+    """Des champs qui sortent a moitie, eux, sont bien un trou d'extraction."""
+    from carexpert.sources.diagnose import DiagnosticReport, SampleReport
+
+    report = DiagnosticReport(url="https://site.fr/x", source="test")
+    report.status = 200
+    report.links_found = 12
+    report.samples = [
+        SampleReport(url="https://site.fr/annonce/1", status=200,
+                     filled=["title", "price"], missing_critical=["km", "year"]),
+    ]
+    actions = report.actions()
+    assert any("selectors" in action for action in actions), actions
+
+
+def test_the_page_can_be_written_out_for_inspection(tmp_path):
+    """Adapter un lecteur demande la page, pas son resume."""
+    target = tmp_path / "page.html"
+    fetcher = FakeFetcher({"/recherche": SEARCH_OK})
+    report = diagnose_search("https://site.fr/recherche", source="test",
+                             fetcher=fetcher, save_to=target)
+    assert target.read_text(encoding="utf-8") == SEARCH_OK
+    assert report.saved_to == str(target)
