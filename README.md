@@ -241,6 +241,8 @@ pas.
 - [Sources et cadre legal](docs/02-sources-et-legal.md) : politique de collecte, CGU, RGPD
 - [Le scoring](docs/03-scoring.md) : estimation, ponderation, limites
 - [Suite](docs/04-roadmap.md) : prochaines etapes et modele economique
+- [Routine quotidienne](docs/05-routine-quotidienne.md) : ou en est le
+  projet, ce qui reste avant la mise en ligne, et le rythme pour y aller
 
 ---
 
@@ -248,7 +250,7 @@ pas.
 
 ```bash
 pip install -e ".[dev,photos]"
-pytest                      # 121 tests
+pytest                      # 167 tests
 carexpert sources           # sources disponibles
 carexpert diagnose -s autoscout24 --url "..."   # valider une source
 ```
