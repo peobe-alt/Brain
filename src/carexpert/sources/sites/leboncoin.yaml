@@ -1,5 +1,15 @@
-# leboncoin - la ou se trouvent les vraies affaires entre particuliers en France,
-# et aussi la source la mieux protegee. A traiter avec le plus de prudence.
+# leboncoin - la ou se trouvent les vraies affaires entre particuliers en
+# France, et aussi la source la mieux protegee.
+#
+# Ce qui a change: le site rend ses resultats en JavaScript, mais il ne va
+# pas les chercher apres coup. Comme tout Next.js, il serialise la reponse du
+# serveur dans la page, en flux "flight" (`self.__next_f.push`). Les annonces
+# sont donc dans la premiere reponse HTTP, avec leur prix, leur kilometrage,
+# leur energie et leur code postal. `sources/embedded.py` les lit.
+#
+# `requires_js: true` n'impose donc pas le navigateur: il l'autorise. La
+# collecte tente d'abord une requete simple et ne demarre un rendu que si la
+# page revient sans annonces (voir `render.escalate`).
 name: leboncoin
 label: leboncoin
 countries: [FR]
@@ -8,11 +18,18 @@ base_url: https://www.leboncoin.fr
 verified: false
 search_url: "https://www.leboncoin.fr/recherche?category=2&text={keywords}&price=min-{price_max}&mileage=min-{km_max}&regdate={year_min}-max&page={page}"
 listing_link_pattern: "/ad/voitures/\\d+"
-max_pages: 2
+page_param: page
+# Le site le mieux protege du lot est aussi celui qu'on sollicite le moins.
+max_pages: 5
 request_delay: 6.0
 requires_js: true
+render:
+  escalate: true
+  wait_selector: "[data-qa-id='aditem_container']"
+  wait_ms: 4000
 selectors: {}
 notes: >
-  Protection anti-bot forte et CGU restrictives. Ne pas forcer. Utiliser
-  les alertes natives du site et l'analyse manuelle d'annonces (commande
-  `carexpert analyse-url`) plutot qu'une collecte automatisee.
+  Protection anti-bot forte et CGU restrictives. Une protection qui repond
+  arrete la collecte, elle ne se contourne pas: voir docs/02-sources-et-legal.md.
+  Les alertes natives du site plus `carexpert analyse-url` restent la voie la
+  plus sure pour un suivi quotidien.

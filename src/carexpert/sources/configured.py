@@ -26,6 +26,7 @@ from ..config import get_settings
 from ..normalize import enrich
 from ..schemas import ListingData, SearchQuery
 from .base import SourceAdapter, SourceInfo
+from .browser import BotProtection, BrowserUnavailable, fetcher_for
 from .fetcher import FetchError, PoliteFetcher, RobotsDisallowed
 from .structured import (
     _listing_id,
@@ -40,7 +41,13 @@ SITES_DIR = Path(__file__).parent / "sites"
 
 
 class ConfiguredSource(SourceAdapter):
-    def __init__(self, config: dict[str, Any], fetcher: PoliteFetcher | None = None) -> None:
+    def __init__(
+        self,
+        config: dict[str, Any],
+        fetcher: PoliteFetcher | None = None,
+        *,
+        browser: bool | None = None,
+    ) -> None:
         self.config = config
         self.info = SourceInfo(
             name=config["name"],
@@ -49,10 +56,7 @@ class ConfiguredSource(SourceAdapter):
             requires_js=bool(config.get("requires_js", False)),
             notes=config.get("notes", ""),
         )
-        self._fetcher = fetcher or PoliteFetcher(
-            delay=config.get("request_delay"),
-            respect_robots=config.get("respect_robots"),
-        )
+        self._fetcher = fetcher or fetcher_for(config, browser=browser)
         self._owns_fetcher = fetcher is None
 
     # -- URL building ------------------------------------------------------
@@ -154,6 +158,9 @@ class ConfiguredSource(SourceAdapter):
             return
         try:
             page = self._fetcher.get(url)
+        except (BotProtection, BrowserUnavailable) as exc:
+            log.warning("%s: %s", self.name, exc)
+            return
         except (FetchError, RobotsDisallowed) as exc:
             log.warning("%s: recherche impossible (%s)", self.name, exc)
             return
@@ -203,6 +210,9 @@ class ConfiguredSource(SourceAdapter):
     def fetch_listing(self, url: str) -> ListingData | None:
         try:
             page = self._fetcher.get(url)
+        except (BotProtection, BrowserUnavailable) as exc:
+            log.warning("%s: %s", self.name, exc)
+            return None
         except (FetchError, RobotsDisallowed) as exc:
             log.info("%s: annonce ignoree (%s)", self.name, exc)
             return None

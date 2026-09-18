@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from .base import SourceAdapter, SourceInfo
+from .browser import BotProtection, BrowserFetcher, BrowserUnavailable
 from .configured import ConfiguredSource, load_site_configs
 from .demo import DemoSource
 from .fetcher import FetchError, PoliteFetcher, RobotsDisallowed
@@ -61,6 +62,9 @@ def source_for_url(url: str) -> str | None:
 
 def get_source(name: str, **kwargs: Any) -> SourceAdapter:
     if name in BUILTIN:
+        # Le marche synthetique n'a pas de site a interroger: le choix du
+        # mode de collecte ne le concerne pas.
+        kwargs.pop("browser", None)
         return BUILTIN[name](**kwargs)
     configs = load_site_configs()
     if name not in configs:
@@ -70,6 +74,9 @@ def get_source(name: str, **kwargs: Any) -> SourceAdapter:
 
 
 __all__ = [
+    "BotProtection",
+    "BrowserFetcher",
+    "BrowserUnavailable",
     "ConfiguredSource",
     "DemoSource",
     "FetchError",

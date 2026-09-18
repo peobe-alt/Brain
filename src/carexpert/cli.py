@@ -81,16 +81,18 @@ def list_sources() -> None:
     table.add_column("nom")
     table.add_column("site")
     table.add_column("pays")
-    table.add_column("JS requis")
+    table.add_column("rendu client")
     for name, info in available_sources().items():
         table.add_row(
             name, info.label, ", ".join(info.countries) or "-",
-            "[red]oui[/red]" if info.requires_js else "non",
+            "[yellow]oui[/yellow]" if info.requires_js else "non",
         )
     console.print(table)
     console.print(
-        "[dim]Les sources marquees 'JS requis' rendent leurs resultats cote client : "
-        "utiliser une recherche collee avec --url, ou un flux officiel.[/dim]"
+        "[dim]Les sources marquees 'rendu client' construisent leur page en JavaScript. "
+        "Leurs annonces sont le plus souvent quand meme dans la premiere reponse, dans "
+        "le JSON que la page hydrate ; un navigateur ne demarre que si elles n'y sont "
+        "pas. Verifier avec : carexpert diagnose -s <source> --url \"<URL collee>\".[/dim]"
     )
 
 
@@ -114,6 +116,10 @@ def scan(
         False, "--revalue-all",
         help="Reestimer toute la base, meme ce qui est deja a jour (apres modification des courbes).",
     ),
+    browser: Optional[bool] = typer.Option(
+        None, "--browser/--no-browser",
+        help="Autoriser un rendu navigateur quand la page revient sans annonces (demande l'extra 'browser'). Par defaut, chaque source suit son propre reglage.",
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
     """Collecter, estimer, expertiser et classer des annonces."""
@@ -126,7 +132,8 @@ def scan(
     with console.status("Collecte et analyse en cours..."):
         with session_scope() as session:
             report = run_scan(session, sources=source, query=query, deep=deep,
-                              notify=notify, search_url=url, revalue_all=revalue_all)
+                              notify=notify, search_url=url, revalue_all=revalue_all,
+                              browser=browser)
 
     console.print(f"\n[bold]{report.summary()}[/bold]")
     for error in report.errors:
@@ -353,11 +360,13 @@ def diagnose(
     make: Optional[str] = typer.Option(None, "--make", help="Sinon, criteres pour construire l'URL."),
     model: Optional[str] = typer.Option(None, "--model"),
     samples: int = typer.Option(3, "--samples", help="Nombre d'annonces ouvertes pour verification."),
+    browser: Optional[bool] = typer.Option(None, "--browser/--no-browser", help="Autoriser un rendu navigateur quand la page revient sans annonces (demande l'extra 'browser')."),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
     """Verifier qu'une source fonctionne vraiment, et dire quoi corriger sinon."""
     _setup_logging(verbose)
     from .sources import get_source
+    from .sources.browser import fetcher_for
     from .sources.configured import ConfiguredSource, load_site_configs
     from .sources.diagnose import diagnose_search
 
@@ -369,7 +378,7 @@ def diagnose(
 
     target = url
     if target is None:
-        adapter = get_source(source)
+        adapter = get_source(source, browser=False)
         if isinstance(adapter, ConfiguredSource):
             target = adapter.build_search_url(_build_query(make, model, None, None, None,
                                                            None, None, None, "FR", 50), 1)
@@ -386,6 +395,7 @@ def diagnose(
             pattern=config.get("listing_link_pattern", r"/\d{5,}"),
             selectors=config.get("selectors"),
             samples=samples,
+            fetcher=fetcher_for(config, browser=browser),
         )
 
     level, phrase = report.verdict()
@@ -411,8 +421,15 @@ def diagnose(
         )
     if report.suggested_pattern:
         table.add_row("motif suggere", f"[yellow]{report.suggested_pattern}[/yellow]")
-    if report.js_suspected:
-        table.add_row("rendu", "[red]JavaScript detecte[/red]")
+    if report.extraction_tier:
+        table.add_row("lues via", report.extraction_tier)
+    if report.rendered:
+        table.add_row("rendu", "[yellow]navigateur[/yellow] (30x plus couteux qu'une requete)")
+    elif report.js_suspected:
+        colour = "yellow" if report.results_complete else "red"
+        detail = (" mais les annonces sont dans la page"
+                  if report.results_complete else "")
+        table.add_row("rendu", f"[{colour}]JavaScript detecte{detail}[/{colour}]")
     console.print(table)
 
     if report.samples:

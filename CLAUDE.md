@@ -126,6 +126,31 @@ Chacun vient d'un defaut reel, mesure :
    renseigne apres la fin pour l'historique ; le lire comme "en cours"
    laissait la banniere affichee et tous les boutons grises pour de bon,
    c'est-a-dire un outil qui ne sert qu'une fois.
+25. **Un rendu cote client ne veut pas dire des annonces absentes.** Une
+   application React ne va pas chercher sa premiere page de resultats apres
+   l'affichage : elle la serialise dans le HTML pour son hydratation.
+   Mesure sur la forme servie par leboncoin : 0 lien d'annonce, 0 noeud
+   schema.org, et pourtant les 6 annonces completes dans la premiere
+   reponse HTTP, prix, kilometrage et code postal compris. Conclure "il faut
+   un navigateur" coute trente fois le prix d'une requete, pour rien.
+26. **Les objets d'annonce se reconnaissent a leur forme, pas a leur
+   chemin.** `props.pageProps.searchData.ads[0]` est aussi fragile qu'un
+   selecteur CSS. Une annonce, c'est une identite, un prix, et un
+   kilometrage ou une annee ; une facette de filtre a un prix et un
+   identifiant mais ni l'un ni l'autre. Et un conteneur qui porte les
+   criteres de la recherche ressemble a une annonce : s'il est retenu, les
+   vingt annonces qu'il contient disparaissent avec lui, sans erreur.
+27. **Le nom du vendeur n'est pas le titre de l'annonce.** Aplatir un objet
+   imbrique fait remonter `seller.name` en `name`, et `name` est un titre.
+   Sur la forme La Centrale, ou aucune annonce ne porte de titre, les
+   quatre annonces s'appelaient "Garage Martin" et "Groupe Rhone Auto", et
+   la marque se perdait avec. L'identite d'un vendeur ne se lit qu'a son
+   chemin complet.
+28. **Une hybride n'est pas une electrique, meme quand son libelle dit
+   "electrique".** leboncoin ecrit "Hybride essence/electrique" pour une
+   hybride simple. Lue dans l'ordre naturel du tableau des carburants, une
+   Yaris hybride sortait en electrique, donc valorisee sur la courbe de
+   decote d'une batterie qu'elle n'a pas. Meme famille que l'invariant 12.
 
 ## Collecte
 
@@ -133,9 +158,13 @@ Le `robots.txt` est respecte par defaut, une requete toutes les 2,5 secondes
 par domaine, rien en parallele, et les protections anti-bot ne se contournent
 pas. Voir `docs/02-sources-et-legal.md` avant de toucher a une source.
 
-L'extraction repose sur le balisage `schema.org/Car` publie par les sites,
-pas sur des selecteurs CSS. Une nouvelle source s'ajoute par un fichier YAML
-dans `src/carexpert/sources/sites/`, sans code Python.
+L'extraction se fait en trois paliers, du moins cher au plus cher : le
+balisage `schema.org/Car` publie par les sites, puis le JSON que la page
+embarque pour son hydratation (`sources/embedded.py`, ce qui rend leboncoin
+et La Centrale lisibles sans navigateur), puis un rendu Chromium qui ne
+demarre que si les deux premiers reviennent vides. Jamais de selecteurs CSS.
+Une nouvelle source s'ajoute par un fichier YAML dans
+`src/carexpert/sources/sites/`, sans code Python.
 
 ## Structure
 

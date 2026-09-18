@@ -1,4 +1,10 @@
 # La Centrale - reference du marche francais, bon etalon de prix FR.
+#
+# Routeur "pages" de Next.js: l'etat complet de la page de resultats est dans
+# <script id="__NEXT_DATA__">, donc lisible sans navigateur. Les annonces y
+# portent `classifiedId`, `customerPrice` et un bloc `vehicle` complet, mais
+# aucun titre: il se reconstruit a partir de la marque, du modele et de la
+# version, ce que `embedded.py` fait deja.
 name: lacentrale
 label: La Centrale
 countries: [FR]
@@ -6,11 +12,16 @@ default_country: FR
 base_url: https://www.lacentrale.fr
 verified: false
 search_url: "https://www.lacentrale.fr/listing?makesModelsCommercialNames={make}%3A{model}&priceMax={price_max}&mileageMax={km_max}&yearMin={year_min}&page={page}"
-listing_link_pattern: "/auto-occasion-annonce-[0-9a-zA-Z]+\\.html"
-max_pages: 3
+listing_link_pattern: "/auto-occasion-annonce-[0-9A-Za-z]+\\.html"
+page_param: page
+max_pages: 8
 request_delay: 4.0
 requires_js: true
+render:
+  escalate: true
+  wait_selector: "[data-test='listingCard']"
+  wait_ms: 3500
 selectors: {}
 notes: >
-  Rendu largement cote client: le motif de lien peut ne rien remonter sans
-  navigateur. Prevoir un rendu headless (Playwright) ou un flux partenaire.
+  Cote professionnelle du marche: beaucoup de marchands, donc des prix plus
+  hauts qu'entre particuliers. Excellent etalon, mauvais juge des affaires.

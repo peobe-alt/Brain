@@ -75,15 +75,84 @@ robot ouvre trois fois la meme annonce.
 ## Sites rendus en JavaScript
 
 `lacentrale`, `leboncoin` et `coches.net` rendent leurs resultats cote
-client : une simple requete HTTP ne renvoie pas les annonces. Trois options,
-par ordre de preference :
+client. On en deduisait qu'il fallait un navigateur. C'est faux, et la
+nuance vaut la peine d'etre comprise.
 
-1. **Flux officiel ou partenariat.** C'est la seule voie propre a l'echelle.
-   La plupart de ces sites ont une offre professionnelle.
-2. **Alertes natives du site**, puis expertise annonce par annonce avec
-   `carexpert analyse-url`.
-3. **Rendu headless** (Playwright) pour un usage personnel et a faible
-   volume. Non inclus ici, volontairement.
+Une application React ne va pas chercher sa premiere page de resultats apres
+l'affichage : ce serait un aller-retour de plus et la place perdue dans les
+moteurs de recherche. Elle **serialise la reponse du serveur dans le HTML**
+et la donne au navigateur pour son hydratation. Les annonces sont donc dans
+la premiere reponse HTTP, sous un nom connu :
+
+| Forme | Ou | Qui |
+|---|---|---|
+| `<script id="__NEXT_DATA__">` | routeur pages Next.js | La Centrale |
+| `self.__next_f.push([1, "..."])` | routeur applicatif Next.js | leboncoin |
+| `window.__NUXT__` | Nuxt | |
+| `__INITIAL_STATE__`, `__APOLLO_STATE__`, `__remixContext` | le reste | |
+
+`sources/embedded.py` lit ces formes. Il ne suit aucun chemin fige :
+`props.pageProps.searchData.ads[0]` serait aussi fragile qu'un selecteur CSS
+et casserait au premier deploiement. Il parcourt l'arbre et retient les
+objets qui **ressemblent** a une annonce : une identite, un prix, et un
+kilometrage ou une annee. Le site peut deplacer son etat, renommer ses
+routes, changer la forme de ses props ; une annonce ressemble toujours a une
+annonce.
+
+### Les trois paliers de collecte
+
+Du moins cher au plus cher, et dans cet ordre :
+
+1. **schema.org** (`structured.py`) : le balisage que le site publie pour les
+   moteurs. Une requete, zero JavaScript.
+2. **Etat embarque** (`embedded.py`) : le JSON que la page hydrate. Meme
+   cout : une requete.
+3. **Rendu navigateur** (`browser.py`) : un vrai Chromium. Trente a soixante
+   sous-requetes, quelques secondes de calcul pour le site comme pour nous.
+
+Le troisieme palier ne demarre que si les deux premiers reviennent sans
+annonces (`render.escalate`, vrai par defaut). Sur une source qui n'en a pas
+besoin, le navigateur ne demarre jamais. `requires_js: true` dans un YAML
+**autorise** le rendu, il ne l'impose pas.
+
+```bash
+pip install -e ".[browser]" && python -m playwright install chromium
+carexpert diagnose -s leboncoin --url "<URL collee>"   # dit par quel palier ca sort
+carexpert scan -s leboncoin --url "<URL collee>" --browser
+```
+
+`carexpert diagnose` affiche la ligne « lues via », et signale un rendu
+navigateur quand il a eu lieu : une source qui bascule silencieusement en
+rendu coute trente fois plus cher, cela doit se voir.
+
+### Ce que le rendu ne fait pas
+
+Il rend une page avec un vrai navigateur, au meme rythme poli que le reste,
+`robots.txt` respecte. C'est tout.
+
+Il ne resout pas de captcha, ne forge ni ne rejoue de jeton de protection, ne
+fait pas tourner d'adresses, et ne se deguise pas en navigateur de quelqu'un
+d'autre. Quand un site repond par une page de defi, `detect_challenge` la
+reconnait et la collecte **s'arrete**, avec une raison lisible. Un site qui
+nous defie a dit non ; la reponse a un non, c'est un accord de donnees, pas
+un contournement.
+
+L'agent utilisateur suit la meme regle : la chaine de Chromium, plus le
+jeton du projet pour que le site puisse identifier et joindre qui le lit.
+`CAREXPERT_USER_AGENT` permet de le changer, et ce qu'on y met engage celui
+qui l'y met.
+
+### Les voies qui restent, dans l'ordre
+
+1. **Flux officiel ou partenariat.** La seule voie propre a l'echelle. La
+   plupart de ces sites ont une offre professionnelle.
+2. **Agregateur.** `leparking` republie les annonces de leboncoin, La
+   Centrale, ParuVendu et des sites de concessions, avec un lien vers la
+   source. Une requete chez lui couvre plusieurs sites. En contrepartie son
+   prix date du dernier passage de son robot : reperer chez lui, conclure
+   chez la source.
+3. **Alertes natives du site**, puis `carexpert analyse-url` annonce par
+   annonce.
 
 ## Le cadre a connaitre
 

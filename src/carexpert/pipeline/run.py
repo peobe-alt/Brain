@@ -101,6 +101,7 @@ def scan(
     notify: bool = False,
     search_url: str | None = None,
     revalue_all: bool = False,
+    browser: bool | None = None,
     on_progress: Progress | None = None,
 ) -> ScanReport:
     """Run one full pass and return what it found.
@@ -109,6 +110,11 @@ def scan(
     price moved, or whose valuation has gone stale. `revalue_all` forces the
     whole base through, which is what you want after changing the valuation
     curves.
+
+    `browser` tranche le mode de collecte: None suit le `requires_js` de
+    chaque source, True et False sont les drapeaux `--browser` /
+    `--no-browser`. Meme autorise, le navigateur ne demarre que si la page
+    revient sans annonces.
     """
     say = on_progress or _silent
     report = ScanReport()
@@ -118,7 +124,7 @@ def scan(
     adapters: dict[str, Any] = {}
     for name in sources:
         try:
-            adapters[name] = get_source(name)
+            adapters[name] = get_source(name, browser=browser)
         except KeyError as exc:
             report.errors.append(str(exc))
 

@@ -19,6 +19,7 @@ from urllib.parse import urljoin, urlparse
 
 from ..normalize import enrich
 from ..schemas import ListingData
+from .browser import BotProtection, BrowserUnavailable
 from .fetcher import FetchError, PoliteFetcher, RobotsDisallowed
 from .structured import (
     extract_from_page,
@@ -67,6 +68,15 @@ class DiagnosticReport:
     elapsed_s: float = 0.0
     links_found: int = 0
     pattern_used: str = ""
+    #: Par quel palier les annonces sont sorties: "schema.org" (balisage
+    #: publie pour les moteurs), "etat embarque" (le JSON que la page
+    #: hydrate), "liens" (une requete par annonce). Savoir lequel a repondu
+    #: dit quoi corriger quand une source se tarit.
+    extraction_tier: str = ""
+    #: Vrai si un navigateur a du rendre la page. Une source qui bascule
+    #: silencieusement en rendu coute trente fois plus cher au site comme a
+    #: nous: elle doit se voir.
+    rendered: bool = False
     #: Annonces lues directement dans le JSON-LD de la page de resultats.
     results_listings: int = 0
     results_complete: int = 0
@@ -91,9 +101,11 @@ class DiagnosticReport:
         # La page de resultats se suffit parfois a elle-meme: elle publie ses
         # annonces en JSON-LD. Dans ce cas l'absence de liens ne prouve rien.
         if self.results_complete:
+            via = f" via {self.extraction_tier}" if self.extraction_tier else ""
+            rendu = ", apres rendu navigateur" if self.rendered else ""
             return "liste", (
                 f"{self.results_listings} annonces lues directement sur la page de "
-                f"resultats, dont {self.results_complete} completes"
+                f"resultats{via}, dont {self.results_complete} completes{rendu}"
             )
         if self.links_found == 0 and self.js_suspected:
             return "js", "la page de recherche est rendue par JavaScript, rien a extraire en HTTP simple"
@@ -112,15 +124,30 @@ class DiagnosticReport:
     def actions(self) -> list[str]:
         """What to do next, concretely."""
         level, _ = self.verdict()
+        if level == "echec" and "anti-bot" in self.error:
+            return [
+                "Le site a repondu par une protection. Ne pas insister: la contourner "
+                "changerait la nature juridique de l'acte.",
+                "Passer par les alertes natives du site, puis `carexpert analyse-url`.",
+                "Ou essayer l'agregateur `leparking`, qui republie une partie de ces "
+                "annonces avec un lien vers la source.",
+                "A l'usage serieux: demander un acces professionnel au site.",
+            ]
         if level == "interdit":
             return [
                 "Ne pas collecter cette URL.",
                 "Chercher un flux officiel ou une offre professionnelle aupres du site.",
             ]
         if level == "liste":
+            source_of_truth = (
+                "publie leurs donnees en JSON-LD."
+                if self.extraction_tier == "schema.org"
+                else "embarque leurs donnees dans le JSON qu'elle hydrate "
+                     "(voir sources/embedded.py)."
+            )
             lines = [
                 "Source exploitable sans ouvrir les annonces: la page de resultats "
-                "publie leurs donnees en JSON-LD.",
+                + source_of_truth,
                 f"Une requete par page de resultats au lieu de {self.results_listings}: "
                 "moins de charge pour le site, plus de couverture pour vous.",
             ]
@@ -138,9 +165,11 @@ class DiagnosticReport:
             return lines
         if level == "js":
             return [
-                "Passer par les alertes natives du site, puis `carexpert analyse-url` annonce par annonce.",
+                "Relancer avec `--browser`: la page est peut-etre rendue cote client sans "
+                "embarquer son etat, et un rendu reel tranchera en une commande.",
+                "Si le rendu revient vide lui aussi, passer par les alertes natives du site, "
+                "puis `carexpert analyse-url` annonce par annonce.",
                 "Ou negocier un acces API/partenaire: c'est la seule voie propre a l'echelle.",
-                "Le rendu headless reste possible pour un usage personnel, a faible volume.",
             ]
         if level == "motif" and self.suggested_pattern:
             return [
@@ -230,7 +259,7 @@ def diagnose_search(
     fetcher: PoliteFetcher | None = None,
 ) -> DiagnosticReport:
     """Check one search URL end to end and say what to fix."""
-    from .structured import extract_listing_links
+    from .structured import extract_jsonld, extract_listing_links, find_item_list
 
     report = DiagnosticReport(url=url, source=source, pattern_used=pattern)
     owned = fetcher is None
@@ -249,7 +278,7 @@ def diagnose_search(
         except RobotsDisallowed:
             report.robots_allows = False
             return report
-        except FetchError as exc:
+        except (BotProtection, BrowserUnavailable, FetchError) as exc:
             report.error = str(exc)
             return report
         report.elapsed_s = time.monotonic() - started
@@ -261,10 +290,16 @@ def diagnose_search(
         links = extract_listing_links(page.text, url, pattern)
         report.links_found = len(links)
         report.js_suspected = any(marker in page.text for marker in JS_MARKERS)
+        report.rendered = page.rendered
 
         # Voie liste: ce que la page de resultats donne sans rien ouvrir.
         rows = extract_listings_from_search(page.text, base_url=url, source=source)
         report.results_listings = len(rows)
+        if rows:
+            report.extraction_tier = (
+                "schema.org" if find_item_list(extract_jsonld(page.text))
+                else "etat embarque"
+            )
         missing: Counter[str] = Counter()
         for row in rows:
             enrich(row)
@@ -297,7 +332,7 @@ def _diagnose_listing(
     sample = SampleReport(url=url)
     try:
         page = fetcher.get(url, use_cache=False)
-    except (FetchError, RobotsDisallowed) as exc:
+    except (BotProtection, BrowserUnavailable, FetchError, RobotsDisallowed) as exc:
         sample.error = str(exc)
         return sample
     sample.status = page.status

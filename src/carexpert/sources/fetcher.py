@@ -41,12 +41,29 @@ class FetchError(RuntimeError):
     """Raised when a URL could not be retrieved after every retry."""
 
 
+class TransportError(RuntimeError):
+    """Raised by a transport when one attempt failed; `get` decides to retry.
+
+    Subclasses swap the transport (a real browser, for pages whose adverts
+    only exist after hydration) without reimplementing robots, throttling,
+    caching or back-off - the rules that make this client polite.
+    """
+
+
 @dataclass(slots=True)
 class FetchResult:
     url: str
     status: int
     text: str
     from_cache: bool = False
+    #: Seconds the site asked us to wait, from its `Retry-After` header. The
+    #: field belongs to the result rather than to the transport so that every
+    #: transport, browser included, can pass the site's own answer along.
+    retry_after: float | None = None
+    #: Whether a real browser rendered this page. Only ever set by the
+    #: browser transport; reported by `diagnose` so a source that silently
+    #: became browser-only is visible rather than merely slow.
+    rendered: bool = False
 
     @property
     def ok(self) -> bool:
@@ -105,12 +122,14 @@ class PoliteFetcher:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             return None
-        return FetchResult(url=url, status=payload["status"], text=payload["text"], from_cache=True)
+        return FetchResult(url=url, status=payload["status"], text=payload["text"],
+                           from_cache=True, rendered=bool(payload.get("rendered")))
 
     def _write_cache(self, result: FetchResult) -> None:
         try:
             self._cache_path(result.url).write_text(
-                json.dumps({"status": result.status, "text": result.text}),
+                json.dumps({"status": result.status, "text": result.text,
+                        "rendered": result.rendered}),
                 encoding="utf-8",
             )
         except OSError as exc:  # pragma: no cover - disk full, read-only fs...
@@ -167,6 +186,20 @@ class PoliteFetcher:
                 time.sleep(wait_for - elapsed + random.uniform(0, 0.4))
         self._last_request[host] = time.monotonic()
 
+    def _transport(self, url: str) -> FetchResult:
+        """One attempt, no retry, no politeness: the overridable part."""
+        try:
+            response = self._client.get(url)
+        except httpx.HTTPError as exc:
+            raise TransportError(str(exc)) from exc
+        header = response.headers.get("Retry-After", "")
+        return FetchResult(
+            url=str(response.url),
+            status=response.status_code,
+            text=response.text,
+            retry_after=float(header) if header.strip().isdigit() else None,
+        )
+
     def get(self, url: str, *, use_cache: bool = True) -> FetchResult:
         if use_cache:
             cached = self._read_cache(url)
@@ -179,24 +212,23 @@ class PoliteFetcher:
         for attempt in range(self.max_retries + 1):
             self._throttle(url)
             try:
-                response = self._client.get(url)
-            except httpx.HTTPError as exc:
+                result = self._transport(url)
+            except TransportError as exc:
                 last_error = exc
                 time.sleep(2**attempt)
                 continue
-            if response.status_code in (429, 503):
-                retry_after = response.headers.get("Retry-After")
-                pause = float(retry_after) if (retry_after or "").isdigit() else 2 ** (attempt + 2)
-                log.warning("%s renvoie %s, pause de %.0fs", url, response.status_code, pause)
+            if result.status in (429, 503):
+                # Le site a le dernier mot sur le rythme: son `Retry-After`
+                # prime sur notre recul exponentiel.
+                pause = result.retry_after or 2 ** (attempt + 2)
+                log.warning("%s renvoie %s, pause de %.0fs", url, result.status, pause)
                 time.sleep(min(pause, 120))
-                last_error = FetchError(f"HTTP {response.status_code}")
+                last_error = FetchError(f"HTTP {result.status}")
                 continue
-            if response.status_code >= 500:
-                last_error = FetchError(f"HTTP {response.status_code}")
+            if result.status >= 500:
+                last_error = FetchError(f"HTTP {result.status}")
                 time.sleep(2**attempt)
                 continue
-            result = FetchResult(url=str(response.url), status=response.status_code,
-                                 text=response.text)
             if result.ok:
                 self._write_cache(result)
             return result

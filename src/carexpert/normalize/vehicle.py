@@ -82,10 +82,15 @@ FUEL_KEYWORDS: list[tuple[Fuel, tuple[str, ...]]] = [
                  "electrique/essence", "electrique / essence", "electrique-essence",
                  "electrique/diesel", "electrique / diesel", "elektro/benzin",
                  "elettrica/benzina", "electrico/gasolina")),
+    # HYBRID passe avant ELECTRIC, et pas l'inverse: le libelle leboncoin d'une
+    # hybride simple est "Hybride essence/electrique". Lue dans l'ordre
+    # naturel, une Yaris hybride sortait en electrique, donc valorisee sur la
+    # courbe de decote d'une batterie qu'elle n'a pas. Une voiture dite
+    # hybride n'est jamais une electrique; l'inverse se lit plus bas.
+    (Fuel.HYBRID, ("hybride", "hybrid", "mhev", "hev", "e-tech", "e-power", "e-cvt")),
     (Fuel.ELECTRIC, ("electrique", "elektro", "elettrica", "electrico", "electric", "bev",
                      " ev ", "e-tron", "id.3", "id.4", "id.5", "zoe", "leaf", "model 3",
                      "model y", "kwh")),
-    (Fuel.HYBRID, ("hybride", "hybrid", "mhev", "hev", "e-tech", "e-power", "e-cvt")),
     (Fuel.ETHANOL, ("ethanol", "e85", "flexfuel", "flex fuel", "flexifuel",
                     "superethanol", "super ethanol", "bioethanol", "ffv")),
     (Fuel.LPG, ("gpl", "lpg", "autogas", "bifuel", "bi-fuel")),

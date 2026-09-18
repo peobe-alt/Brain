@@ -1,0 +1,23 @@
+# Ouest-France Auto - le site francais le plus simple a collecter.
+#
+# Rendu cote serveur, balisage schema.org/Car complet sur la page d'annonce,
+# pas de protection agressive. Il n'a pas le volume de leboncoin, mais sur le
+# grand Ouest il apporte des annonces de particuliers qu'on ne voit pas
+# ailleurs, et il sert de source de controle: quand une passe leboncoin
+# revient vide, une passe ici qui revient pleine dit ou est le probleme.
+name: ouestfrance-auto
+label: Ouest-France Auto
+countries: [FR]
+default_country: FR
+base_url: https://www.ouestfrance-auto.com
+verified: false
+search_url: "https://www.ouestfrance-auto.com/voiture-occasion/?marque={make}&modele={model}&prixMax={price_max}&kilometrageMax={km_max}&anneeMin={year_min}&page={page}"
+listing_link_pattern: "/voiture-occasion/[^\"'?#]+-\\d+\\.html"
+page_param: page
+max_pages: 10
+request_delay: 2.5
+requires_js: false
+selectors: {}
+notes: >
+  Source de controle du dispositif francais: si elle rend des annonces et
+  qu'une autre n'en rend plus, le probleme vient de l'autre site, pas du code.

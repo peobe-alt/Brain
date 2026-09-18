@@ -20,7 +20,8 @@ from urllib.parse import parse_qs, parse_qsl, urlencode, urljoin, urlparse, urlu
 from bs4 import BeautifulSoup
 
 from ..normalize.text import parse_km, parse_power_hp, parse_price, parse_registration, parse_year
-from ..schemas import ListingData, Photo, SellerType
+from ..schemas import Fuel, Gearbox, ListingData, Photo, SellerType
+from .embedded import extract_listing_from_state, extract_listings_from_state
 
 log = logging.getLogger(__name__)
 
@@ -594,10 +595,16 @@ def extract_listings_from_search(
     on AutoScout24 the advert titles are `<a>` tags with no `href` at all
     (JavaScript adds it on hydration), so a link harvester finds zero adverts
     on a page that plainly shows fourteen.
+
+    Sites that publish no `ItemList` at all - leboncoin, La Centrale - still
+    ship their results as JSON inside the page, for their own hydration. That
+    is the second tier, in `embedded.py`.
     """
     item_list = find_item_list(extract_jsonld(html))
     if not item_list:
-        return []
+        return extract_listings_from_state(
+            html, base_url=base_url, source=source, country=country
+        )
 
     cards = _article_data(html)
     elements_by_id = _article_elements(html)
@@ -636,11 +643,25 @@ def extract_listings_from_search(
 def extract_from_page(
     html: str, *, url: str, source: str, country: str = "FR", selectors: dict | None = None
 ) -> ListingData | None:
-    """Best-effort extraction of a single advert page."""
+    """Best-effort extraction of a single advert page.
+
+    Four tiers, richest and most stable first: schema.org, the page's own
+    embedded state, microdata, OpenGraph. The second tier also patches the
+    first when the site's markup is thin - a `Car` node with a price and no
+    mileage is common, and the mileage is right there in the JSON the page
+    hydrates from.
+    """
     node = find_vehicle_node(extract_jsonld(html))
     listing: ListingData | None = None
     if node is not None:
         listing = listing_from_jsonld(node, url=url, source=source, country=country)
+
+    if listing is None or _has_gaps(listing):
+        embedded = extract_listing_from_state(html, url=url, source=source, country=country)
+        if listing is None:
+            listing = embedded
+        elif embedded is not None:
+            _fill_gaps(listing, embedded)
 
     if listing is None:
         micro = extract_microdata(html)
@@ -663,6 +684,41 @@ def extract_from_page(
     _apply_selectors(listing, html, selectors or {})
     listing.fill_price_eur()
     return listing
+
+
+#: Fields without which an advert cannot be valued or judged. Their absence
+#: is what makes it worth reading the page's embedded state as well.
+CORE_FIELDS = ("price", "km", "year", "make", "description")
+
+#: Fields the embedded state may fill in when schema.org left them empty.
+#: Never `title`, `url` or `source_id`: those come from the page itself and a
+#: neighbouring "similar cars" record must not be able to overwrite them.
+FILLABLE_FIELDS = (
+    "description", "price", "km", "year", "first_registration", "make", "model",
+    "version", "power_hp", "doors", "seats", "color", "owners", "seller_name",
+    "city", "region", "postcode",
+)
+
+
+def _has_gaps(listing: ListingData) -> bool:
+    return any(getattr(listing, field, None) in (None, "") for field in CORE_FIELDS)
+
+
+def _fill_gaps(listing: ListingData, other: ListingData) -> None:
+    """Copy across only what is missing, never what is already known."""
+    for field in FILLABLE_FIELDS:
+        if getattr(listing, field, None) in (None, ""):
+            value = getattr(other, field, None)
+            if value not in (None, ""):
+                setattr(listing, field, value)
+    if not listing.photos:
+        listing.photos = other.photos
+    if listing.seller_type is SellerType.UNKNOWN:
+        listing.seller_type = other.seller_type
+    if listing.fuel is Fuel.UNKNOWN:
+        listing.fuel = other.fuel
+    if listing.gearbox is Gearbox.UNKNOWN:
+        listing.gearbox = other.gearbox
 
 
 def _apply_selectors(listing: ListingData, html: str, selectors: dict) -> None:

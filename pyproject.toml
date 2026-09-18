@@ -22,6 +22,9 @@ dependencies = [
 
 [project.optional-dependencies]
 photos = ["pillow>=10.0"]
+# Troisieme palier de collecte seulement: les deux premiers (schema.org et
+# etat embarque) n'ont besoin de rien de plus que httpx.
+browser = ["playwright>=1.44"]
 dev = ["pytest>=8.0", "ruff>=0.4"]
 
 [project.scripts]

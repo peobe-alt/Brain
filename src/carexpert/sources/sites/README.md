@@ -12,7 +12,8 @@ ajouter une.
 | `search_url` | gabarit d'URL de recherche, variables entre accolades |
 | `listing_link_pattern` | expression reguliere reconnaissant une URL d'annonce |
 | `request_delay` | secondes entre deux requetes sur ce domaine |
-| `requires_js` | `true` si le site rend ses resultats cote client |
+| `requires_js` | `true` autorise un rendu navigateur si la page revient vide |
+| `render` | reglages du rendu : `escalate`, `wait_selector`, `wait_ms`, `wait_until` |
 | `selectors` | secours CSS quand le schema.org est absent |
 | `verified` | `false` tant que le gabarit n'a pas ete teste en conditions reelles |
 
@@ -30,6 +31,28 @@ Les gabarits d'URL changent. Plutot que de les deviner :
 
 L'extraction, elle, ne depend pas de l'URL : elle lit le balisage
 schema.org que les sites publient pour le referencement.
+
+## Sites "rendus en JavaScript"
+
+`requires_js: true` **autorise** le navigateur, il ne l'impose pas. La
+collecte tente toujours une requete simple d'abord, et ne demarre un rendu
+que si la page revient sans annonces. Sur leboncoin et La Centrale, elle
+n'en demarre jamais : leurs annonces sont dans la premiere reponse HTTP,
+dans le JSON que la page hydrate. Voir `docs/02-sources-et-legal.md`.
+
+```yaml
+requires_js: true
+render:
+  escalate: true                       # false force le rendu a chaque page
+  wait_selector: "[data-test='card']"  # attendre cet element plutot qu'un delai
+  wait_ms: 3500
+```
+
+Le rendu demande l'extra correspondant, une fois :
+
+```bash
+pip install -e ".[browser]" && python -m playwright install chromium
+```
 
 ## Avant d'activer une source
 

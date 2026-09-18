@@ -54,6 +54,19 @@ def test_fuel_detection_is_multilingual():
     assert detect_fuel("Hybride rechargeable") is Fuel.PHEV
 
 
+def test_a_hybrid_is_never_read_as_an_electric():
+    """Le libelle leboncoin d'une hybride simple contient "electrique".
+
+    "Hybride essence/electrique" lu comme electrique valorisait une Yaris
+    hybride sur la courbe de decote d'une batterie qu'elle n'a pas.
+    """
+    assert detect_fuel("Hybride essence/electrique") is Fuel.HYBRID
+    assert detect_fuel("Hybride rechargeable essence/electrique") is Fuel.PHEV
+    # Et l'inverse tient toujours: sans mention d'hybride, c'est une electrique.
+    assert detect_fuel("Electrique") is Fuel.ELECTRIC
+    assert detect_fuel("Tesla Model 3 Long Range") is Fuel.ELECTRIC
+
+
 def test_fuel_detection_ignores_equipment_mentions():
     """`hayon electrique` is a power tailgate, not an electric car."""
     assert detect_fuel("Volkswagen Golf 1.6 TDI", None, "Options: hayon electrique") is Fuel.DIESEL

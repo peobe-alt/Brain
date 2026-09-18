@@ -1,0 +1,29 @@
+# leparking - un agregateur, pas un site d'annonces.
+#
+# C'est sa raison d'etre ici: il indexe leboncoin, La Centrale, ParuVendu,
+# Ouest-France Auto et les sites de concessions, et republie chaque annonce
+# avec son prix, son kilometrage et un lien vers la source. Une requete chez
+# lui couvre donc plusieurs sites d'un coup, y compris ceux qu'on ne va pas
+# solliciter directement.
+#
+# En contrepartie: l'annonce republiee est un reflet, parfois en retard d'un
+# jour sur l'originale, et l'agregateur deduplique mal les crosspostings des
+# marchands. L'invariant 4 (dedupliquer les comparables par vehicule) n'est
+# pas negociable sur cette source.
+name: leparking
+label: leparking
+countries: [FR, BE, DE, ES, IT, NL]
+default_country: FR
+base_url: https://www.leparking.fr
+verified: false
+search_url: "https://www.leparking.fr/voitures-occasion/{make}-{model}.html?prix_max={price_max}&km_max={km_max}&annee_min={year_min}&page={page}"
+listing_link_pattern: "/voiture-occasion/[^\"'?#]+\\.html"
+page_param: page
+max_pages: 10
+request_delay: 3.0
+requires_js: false
+selectors: {}
+notes: >
+  Agregateur: le lien pointe vers le site d'origine, le prix affiche est
+  celui du dernier passage de leur robot. A utiliser pour reperer, puis
+  rouvrir l'annonce chez la source avant de conclure.
