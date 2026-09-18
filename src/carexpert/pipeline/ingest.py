@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Iterable
 
 from sqlalchemy import select
@@ -55,6 +55,7 @@ def ingest(session: Session, listings: Iterable[ListingData]) -> IngestStats:
         ).scalar_one_or_none()
 
         price_moved = False
+        created = row is None
         if row is None:
             row = Listing(
                 fingerprint=fingerprint(listing),
@@ -80,6 +81,11 @@ def ingest(session: Session, listings: Iterable[ListingData]) -> IngestStats:
         session.flush()
         if price_moved:
             stats.touched_ids.add(row.id)
+
+        # Une annonce qui affiche son ancien prix nous donne son historique
+        # d'avance. Sans ca, une baisse de prix n'est visible qu'au deuxieme
+        # passage, c'est-a-dire souvent le lendemain, c'est-a-dire trop tard.
+        _seed_previous_price(session, row, listing, created=created)
 
         last_price = session.execute(
             select(Pricepoint)
@@ -123,6 +129,32 @@ def _apply(row: Listing, listing: ListingData) -> None:
     row.posted_at = listing.posted_at
     row.last_seen = datetime.utcnow()
     row.active = True
+
+
+def _seed_previous_price(
+    session: Session, row: Listing, listing: ListingData, *, created: bool
+) -> None:
+    """Record the price the advert says it used to ask, once."""
+    previous = listing.extra.get("previous_price")
+    if not created or not previous or not listing.price_eur:
+        return
+    try:
+        previous = float(previous)
+    except (TypeError, ValueError):
+        return
+    if previous <= listing.price_eur:
+        return
+    session.add(
+        Pricepoint(
+            listing_id=row.id,
+            price_eur=previous,
+            seen_at=listing.scraped_at - timedelta(seconds=1),
+        )
+    )
+    log.info(
+        "%s: baisse de prix annoncee sur l'annonce, %.0f -> %.0f EUR",
+        listing.source, previous, listing.price_eur,
+    )
 
 
 #: Champs qu'une page d'annonce peut legitimement ne pas repeter alors que

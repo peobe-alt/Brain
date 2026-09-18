@@ -85,6 +85,19 @@ Chacun vient d'un defaut reel, mesure :
    passe profonde appelait une fonction inexistante : aucun test n'allait
    jusque-la, faute de cle API. Tout chemin conditionne par une cle ou un
    reseau doit avoir son test avec un double.
+16. **Une annonce reelle ne se compare qu'a des annonces reelles.** Le marche
+   synthetique (`sources/demo.py`) mesure la qualite du classement, il ne fixe
+   aucun prix. Mesure : une Golf reelle a 15 990 EUR estimee a 6 935 EUR face
+   a 10 comparables inventes, avec 0,58 de confiance et un verdict "A FUIR".
+   La confiance ne protege pas : de fausses annonces sont parfaitement
+   coherentes entre elles.
+17. **La puissance se lit aussi dans le texte de la carte.** Sur une page de
+   resultats AutoScout24, trois annonces sur six ne la donnent nulle part
+   ailleurs que dans `235 kW (320 Ch)`. Sans elle, une Golf R de 320 ch se
+   compare a une 1.2 TSI.
+18. **Un prix qui vient de baisser est ecrit sur la carte.** Le lire evite
+   d'attendre un second passage, c'est-a-dire le lendemain, pour voir une
+   baisse que le vendeur affiche aujourd'hui.
 
 ## Collecte
 

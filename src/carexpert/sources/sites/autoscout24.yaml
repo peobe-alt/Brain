@@ -47,7 +47,21 @@ listing_link_pattern: "/offres/[^/?#]+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a
 # <article id="<uuid>" data-first-registration data-listing-zip-code ...>
 # qui complete la date de mise en circulation et le code postal.
 # D'ou: on lit la page de resultats, on n'ouvre pas les 14 annonces.
+#
+# Confirme sur une deuxieme page (Volkswagen Golf, 1 849 annonces, 93 pages),
+# qui ajoute trois choses:
+#   - le JSON-LD y est enveloppe dans un @graph;
+#   - la puissance n'est dans aucun attribut, seulement dans le texte de la
+#     carte ("235 kW (320 Ch)");
+#   - une annonce dont le prix vient de baisser affiche son ancien prix.
+# A confirmer encore: la pagination. Les numeros de page sont des <button>,
+# pas des liens, donc l'URL de la page 2 reste a relever dans le navigateur.
 results_page_listings: true
+
+# Codes carburant releves dans la taxonomie que le site publie dans sa propre
+# page: B essence, D diesel, E electrique, C GNV, H hydrogene, L GPL,
+# M ethanol, 2 electrique/essence, 3 electrique/diesel. Utilises uniquement
+# si le schema.org ne dit rien.
 
 max_pages: 3
 request_delay: 3.0

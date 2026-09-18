@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<!--
+  Extrait reel d'une page de resultats AutoScout24 (Volkswagen Golf, France,
+  1 849 annonces, 93 pages). Six annonces sur vingt, choisies pour ce
+  qu'elles cassent:
+
+    1. Golf R      - cas nominal, professionnel.
+    3. e-Golf      - electrique.
+    6. 1.8 TFSI    - PRIX BAISSE: la carte porte l'ancien prix (7 490 -> 6 990).
+    7. Golf SW     - break, modele "Golf Variant" dans le JSON-LD.
+    11. "7 1.6 tdi"- LE SITE SE TROMPE: il annonce la version "E-Golf" et un
+                     moteur "E 85 kW" sur une Golf diesel, et ne donne aucune
+                     puissance. Le JSON-LD dit Diesel: c'est lui qui a raison.
+    19. GTE        - hybride rechargeable, annonce en "Electrique/Essence".
+
+  Conserves tels quels: le JSON-LD (dans un @graph, avec ses URL echappees
+  en /), les balises <a> de titre SANS href, et les attributs data-* des
+  cartes. Retires: le CSS, le JavaScript, la publicite, __NEXT_DATA__ (qui
+  contient des numeros de telephone que nous ne collectons pas).
+-->
+<html lang="fr-FR">
+<head>
+<meta charset="utf-8"/>
+<title>Volkswagen Golf (tous) d'occasion a acheter sur AutoScout24</title>
+<link rel="canonical" href="https://www.autoscout24.fr/lst/volkswagen/golf-tous"/>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SearchResultsPage","@id":"https://www.autoscout24.fr/lst/volkswagen/golf-tous","name":"Volkswagen Golf (tous) d'occasion a acheter sur AutoScout24","url":"https://www.autoscout24.fr/lst/volkswagen/golf-tous","inLanguage":"fr-FR","mainEntity":{"@type":"ItemList","@id":"https://www.autoscout24.fr/lst/volkswagen/golf-tous#results","numberOfItems":20,"itemListElement":[
+{"@type":"ListItem","position":1,"url":"/offres/volkswagen-golf-r-2-0-tsi-4motion-dsg-essence-blanc-cat_ma74mo76377-953c73d6-d822-4cbb-9be2-9539e3386e32","item":{"@type":["Car","Product"],"name":"Volkswagen Golf R 2.0 TSI 4Motion DSG","brand":{"@type":"Brand","name":"Volkswagen"},"model":"Golf R","vehicleConfiguration":"2.0 TSI 4Motion DSG","mileageFromOdometer":{"@type":"QuantitativeValue","value":64000,"unitCode":"KMT"},"fuelType":"Essence","vehicleTransmission":"Boite automatique","itemCondition":"https://schema.org/UsedCondition","image":["https://prod.pictures.autoscout24.net/listing-images/953c73d6_1.jpg/250x188.webp","https://prod.pictures.autoscout24.net/listing-images/953c73d6_2.jpg/250x188.webp"],"offers":{"@type":"Offer","price":28640,"priceCurrency":"EUR","availability":"https://schema.org/InStock","seller":{"@type":"AutoDealer","name":"Garages Securicar","address":{"@type":"PostalAddress","addressLocality":"Merignac","addressCountry":"FR"}}}}},
+{"@type":"ListItem","position":3,"url":"/offres/volkswagen-golf-e-golf-electric-115-24-2kwh-bva-electrique-blanc-cat_ma74mo2084-a4399361-b692-44fb-9d12-2f1ead36e186","item":{"@type":["Car","Product"],"name":"Volkswagen Golf e-golf electric 115 24.2kwh bva camera de recul garantie 6 mois","brand":{"@type":"Brand","name":"Volkswagen"},"model":"Golf","vehicleConfiguration":"e-golf electric 115 24.2kwh bva","mileageFromOdometer":{"@type":"QuantitativeValue","value":163000,"unitCode":"KMT"},"fuelType":"Electrique","vehicleTransmission":"Boite automatique","image":["https://prod.pictures.autoscout24.net/listing-images/a4399361_1.jpg/250x188.webp"],"offers":{"@type":"Offer","price":8490,"priceCurrency":"EUR","seller":{"@type":"AutoDealer","name":"EWIGO SELESTAT","address":{"@type":"PostalAddress","addressLocality":"Selestat","addressCountry":"FR"}}}}},
+{"@type":"ListItem","position":6,"url":"/offres/volkswagen-golf-1-8-tfsi-160cv-bvm6-highline-pdc-sieges-chauffants-essence-cat_ma74mo2084-1969de9f-49d9-4d0e-ab81-8ac5a8264b2d","item":{"@type":["Car","Product"],"name":"Volkswagen Golf 1.8 TFSI 160CV BVM6 HIGHLINE PDC SIEGES CHAUFFANTS","brand":{"@type":"Brand","name":"Volkswagen"},"model":"Golf","mileageFromOdometer":{"@type":"QuantitativeValue","value":112000,"unitCode":"KMT"},"fuelType":"Essence","vehicleTransmission":"Boite manuelle","image":["https://prod.pictures.autoscout24.net/listing-images/1969de9f_1.jpg/250x188.webp"],"offers":{"@type":"Offer","price":6990,"priceCurrency":"EUR","seller":{"@type":"AutoDealer","name":"BH CAR HAGUENAU","address":{"@type":"PostalAddress","addressLocality":"Haguenau","addressCountry":"FR"}}}}},
+{"@type":"ListItem","position":7,"url":"/offres/volkswagen-golf-variant-golf-sw-1-6-tdi-110-bluemotion-technology-allstar-diesel-gris-cat_ma74mo20340-acf5c622-07fc-4e43-a369-5e7bbeb1fca6","item":{"@type":["Car","Product"],"name":"Volkswagen Golf Variant Golf SW 1.6 TDI 110 BlueMotion Technology Serie Speciale Allstar","brand":{"@type":"Brand","name":"Volkswagen"},"model":"Golf Variant","mileageFromOdometer":{"@type":"QuantitativeValue","value":132566,"unitCode":"KMT"},"fuelType":"Diesel","vehicleTransmission":"Boite manuelle","image":["https://prod.pictures.autoscout24.net/listing-images/acf5c622_1.jpg/250x188.webp"],"additionalProperty":[{"@type":"PropertyValue","name":"engineDisplacement","value":"1 598 cm3"}],"offers":{"@type":"Offer","price":8950,"priceCurrency":"EUR","seller":{"@type":"AutoDealer","name":"RAMO CARS","address":{"@type":"PostalAddress","addressLocality":"Meyzieu","addressCountry":"FR"}}}}},
+{"@type":"ListItem","position":11,"url":"/offres/volkswagen-golf-7-1-6-tdi-110-cv-en-etat-meca-ok-diesel-gris-cat_ma74mo2084-307ec02b-855e-4d0c-ab25-05ddca468879","item":{"@type":["Car","Product"],"name":"Volkswagen Golf 7 1.6 tdi 110 cv en etat meca ok","brand":{"@type":"Brand","name":"Volkswagen"},"model":"Golf","vehicleConfiguration":"7 1.6 tdi 110 cv en etat meca ok","mileageFromOdometer":{"@type":"QuantitativeValue","value":255000,"unitCode":"KMT"},"fuelType":"Diesel","vehicleTransmission":"Boite manuelle","image":["https://prod.pictures.autoscout24.net/listing-images/307ec02b_1.jpg/250x188.webp"],"offers":{"@type":"Offer","price":5900,"priceCurrency":"EUR","seller":{"@type":"AutoDealer","name":"MONDIAL AUTO","address":{"@type":"PostalAddress","addressLocality":"CERCOTTES","addressCountry":"FR"}}}}},
+{"@type":"ListItem","position":19,"url":"/offres/volkswagen-golf-1-4-tsi-gte-204h-150-hybrid-phev-13kwh-confort-line-dsg-bva-electrique-essence-gris-cat_ma74mo2084-d7aaa9ee-763e-4377-8211-49a96b59698a","item":{"@type":["Car","Product"],"name":"Volkswagen Golf 1.4 TSI GTE 204H 150 HYBRID PHEV 13KWH CONFORT LINE DSG BVA","brand":{"@type":"Brand","name":"Volkswagen"},"model":"Golf","mileageFromOdometer":{"@type":"QuantitativeValue","value":129563,"unitCode":"KMT"},"fuelType":"Electrique/Essence","vehicleTransmission":"Boite automatique","image":["https://prod.pictures.autoscout24.net/listing-images/d7aaa9ee_1.jpg/250x188.webp"],"offers":{"@type":"Offer","price":15990,"priceCurrency":"EUR","seller":{"@type":"AutoDealer","name":"EWIGO ROMANS SUR ISERE","address":{"@type":"PostalAddress","addressLocality":"Romans-sur-Isere","addressCountry":"FR"}}}}}
+]}}]}</script>
+</head>
+<body>
+<main id="main-target">
+<h1><span>1 849 </span><span>offres pour Volkswagen Golf (tous)</span></h1>
+
+<article id="953c73d6-d822-4cbb-9be2-9539e3386e32" data-testid="list-item" data-guid="953c73d6-d822-4cbb-9be2-9539e3386e32" data-customer-id="63527513" data-vehicle-type="c" data-price-label="toolow-price " data-position="1" data-price="28640" data-make="volkswagen" data-seller-type="d" data-listing-country="f" data-listing-zip-code="33700" data-mileage="64000" data-fuel-type="b" data-model="golf r" data-first-registration="01-2023">
+  <a class="ListItemTitle_anchor__4TrfR"><h2 class="ListItemTitle_heading__G2W_N"><span>Volkswagen Golf R</span><span> 2.0 TSI 4Motion DSG </span></h2></a>
+  <span class="CurrentPrice_price__Ekflz"><span data-testid="regular-price">&euro; 28 640</span></span>
+  <span class="ListItemPill_text__Cr6mq">235 kW (320 Ch)</span>
+</article>
+
+<article id="a4399361-b692-44fb-9d12-2f1ead36e186" data-testid="list-item" data-guid="a4399361-b692-44fb-9d12-2f1ead36e186" data-vehicle-type="c" data-price-label="good-price" data-position="3" data-price="8490" data-make="volkswagen" data-seller-type="d" data-listing-country="f" data-listing-zip-code="67600" data-mileage="163000" data-fuel-type="e" data-model="golf" data-first-registration="11-2015">
+  <a class="ListItemTitle_anchor__4TrfR"><h2 class="ListItemTitle_heading__G2W_N"><span>Volkswagen Golf</span><span> e-golf electric 115 24.2kwh bva </span></h2></a>
+  <span class="CurrentPrice_price__Ekflz"><span data-testid="regular-price">&euro; 8 490</span></span>
+  <span class="ListItemPill_text__Cr6mq">86 kW (117 Ch)</span>
+</article>
+
+<article id="1969de9f-49d9-4d0e-ab81-8ac5a8264b2d" data-testid="list-item" data-guid="1969de9f-49d9-4d0e-ab81-8ac5a8264b2d" data-vehicle-type="c" data-price-label="top-price" data-position="6" data-price="6990" data-make="volkswagen" data-seller-type="d" data-listing-country="f" data-listing-zip-code="67500" data-mileage="112000" data-fuel-type="b" data-model="golf" data-first-registration="09-2010">
+  <a class="ListItemTitle_anchor__4TrfR"><h2 class="ListItemTitle_heading__G2W_N"><span>Volkswagen Golf</span><span> 1.8 TFSI 160CV BVM6 HIGHLINE PDC SIEGES CHAUFFANTS </span></h2></a>
+  <span class="CurrentPrice_price__Ekflz"><span data-testid="regular-price">&euro; 6 990</span></span>
+  <div class="PreviousPrice_container__nbLAS"><span class="PreviousPrice_price__2cs7_">&euro; 7 490,-</span></div>
+  <span class="ListItemPill_text__Cr6mq">Prix reduit</span>
+  <span class="ListItemPill_text__Cr6mq">118 kW (160 Ch)</span>
+</article>
+
+<article id="acf5c622-07fc-4e43-a369-5e7bbeb1fca6" data-testid="list-item" data-guid="acf5c622-07fc-4e43-a369-5e7bbeb1fca6" data-vehicle-type="c" data-price-label="top-price" data-position="7" data-price="8950" data-make="volkswagen" data-seller-type="d" data-listing-country="f" data-listing-zip-code="69330" data-mileage="132566" data-fuel-type="d" data-model="golf variant" data-first-registration="11-2016">
+  <a class="ListItemTitle_anchor__4TrfR"><h2 class="ListItemTitle_heading__G2W_N"><span>Volkswagen Golf Variant</span><span> Golf SW 1.6 TDI 110 BlueMotion Technology </span></h2></a>
+  <span class="CurrentPrice_price__Ekflz"><span data-testid="regular-price">&euro; 8 950</span></span>
+  <span class="ListItemPill_text__Cr6mq">81 kW (110 Ch)</span>
+</article>
+
+<article id="307ec02b-855e-4d0c-ab25-05ddca468879" data-testid="list-item" data-guid="307ec02b-855e-4d0c-ab25-05ddca468879" data-vehicle-type="c" data-price-label="unknown" data-position="11" data-price="5900" data-make="volkswagen" data-seller-type="d" data-listing-country="f" data-listing-zip-code="45520" data-mileage="255000" data-fuel-type="d" data-model="golf" data-first-registration="01-2016">
+  <a class="ListItemTitle_anchor__4TrfR"><h2 class="ListItemTitle_heading__G2W_N"><span>Volkswagen Golf</span><span> 7 1.6 tdi 110 cv en etat meca ok </span></h2></a>
+  <span class="CurrentPrice_price__Ekflz"><span data-testid="regular-price">&euro; 5 900</span></span>
+  <span class="ListItemPill_text__Cr6mq">-/-</span>
+</article>
+
+<article id="d7aaa9ee-763e-4377-8211-49a96b59698a" data-testid="list-item" data-guid="d7aaa9ee-763e-4377-8211-49a96b59698a" data-vehicle-type="c" data-price-label="top-price" data-position="19" data-price="15990" data-make="volkswagen" data-seller-type="d" data-listing-country="f" data-listing-zip-code="26100" data-mileage="129563" data-fuel-type="2" data-model="golf" data-first-registration="08-2017">
+  <a class="ListItemTitle_anchor__4TrfR"><h2 class="ListItemTitle_heading__G2W_N"><span>Volkswagen Golf</span><span> 1.4 TSI GTE 204H 150 HYBRID PHEV 13KWH CONFORT LINE DSG BVA </span></h2></a>
+  <span class="CurrentPrice_price__Ekflz"><span data-testid="regular-price">&euro; 15 990</span></span>
+  <div class="PreviousPrice_container__nbLAS"><span class="PreviousPrice_price__2cs7_">&euro; 16 990,-</span></div>
+  <span class="ListItemPill_text__Cr6mq">111 kW (151 Ch)</span>
+</article>
+
+<nav aria-label="Pagination">
+  <button aria-current="true" aria-label="Aller a la page 1">1</button>
+  <button aria-current="false" aria-label="Aller a la page  2">2</button>
+  <button aria-current="false" aria-label="Aller a la page  93">93</button>
+  <button aria-label="Aller a la page 2">Suivant</button>
+</nav>
+</main>
+</body>
+</html>

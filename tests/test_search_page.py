@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from carexpert.normalize import enrich
-from carexpert.schemas import Fuel, Gearbox, SellerType
+from carexpert.schemas import BodyType, Fuel, Gearbox, SellerType
 from carexpert.sources.configured import ConfiguredSource, load_site_configs
 from carexpert.sources.fetcher import FetchResult
 from carexpert.sources.structured import (
@@ -194,3 +194,101 @@ def test_a_list_without_prices_falls_back_to_opening_the_adverts():
     assert len(collected) == 2
     assert all(row.price_eur == 14500 for row in collected)
     assert fetcher.calls[1:] == ["https://site.fr/ad/1", "https://site.fr/ad/2"]
+
+
+# --- la page Volkswagen Golf (1 849 annonces, 93 pages) -------------------
+
+GOLF_FIXTURE = Path(__file__).parent / "fixtures" / "autoscout24_search_golf.html"
+GOLF_URL = "https://www.autoscout24.fr/lst/volkswagen/golf-tous?cy=F&sort=standard"
+
+
+@pytest.fixture(scope="module")
+def golf_html() -> str:
+    return GOLF_FIXTURE.read_text(encoding="utf-8")
+
+
+def golf_rows(golf_html: str):
+    rows = extract_listings_from_search(
+        golf_html, base_url=GOLF_URL, source="autoscout24"
+    )
+    return {row.source_id[:8]: enrich(row) for row in rows}
+
+
+def test_the_item_list_survives_a_graph_wrapper(golf_html):
+    """Cette page-la enveloppe son JSON-LD dans un @graph, pas l'autre."""
+    assert extract_listing_links(golf_html, GOLF_URL, AS24_PATTERN) == []
+    item_list = find_item_list(extract_jsonld(golf_html))
+    assert item_list["numberOfItems"] == 20
+    assert len(golf_rows(golf_html)) == 6
+
+
+def test_every_advert_gets_its_power(golf_html):
+    """Sans puissance, une Golf R de 320 ch se compare a une 1.2 TSI.
+
+    La puissance n'est dans aucun attribut: elle est ecrite dans la carte,
+    sous la forme `235 kW (320 Ch)`. Trois des six annonces ne la donnent
+    nulle part ailleurs.
+    """
+    rows = golf_rows(golf_html)
+    assert [rows[k].power_hp for k in ("953c73d6", "a4399361", "d7aaa9ee")] == [320, 117, 151]
+    assert all(row.power_hp for row in rows.values())
+
+
+def test_a_price_cut_is_seen_on_the_first_visit(golf_html):
+    """L'annonce affiche son ancien prix: inutile d'attendre demain."""
+    rows = golf_rows(golf_html)
+    assert rows["1969de9f"].extra["previous_price"] == 7490
+    assert rows["1969de9f"].price_eur == 6990
+    assert rows["d7aaa9ee"].extra["previous_price"] == 16990
+    assert "previous_price" not in rows["953c73d6"].extra
+
+
+def test_a_plug_in_hybrid_is_not_an_electric_car(golf_html):
+    """AutoScout24 dit "Electrique/Essence": c'est une GTE, pas une e-Golf."""
+    rows = golf_rows(golf_html)
+    assert rows["d7aaa9ee"].fuel is Fuel.PHEV
+    assert rows["a4399361"].fuel is Fuel.ELECTRIC
+
+
+def test_the_json_ld_wins_over_the_site_s_own_mistake(golf_html):
+    """Annonce 11: le site classe une Golf 1.6 TDI en version "E-Golf".
+
+    Son moteur declare est "E 85 kW", sa puissance est absente et sa carte
+    ne montre que "-/-". Seuls le carburant du schema.org et le titre disent
+    la verite; c'est eux qu'on suit.
+    """
+    row = golf_rows(golf_html)["307ec02b"]
+    assert row.fuel is Fuel.DIESEL
+    assert row.power_hp == 110       # lu dans le titre, faute de mieux
+    assert row.km == 255000
+
+
+def test_an_estate_is_recognised_from_the_model_name(golf_html):
+    row = golf_rows(golf_html)["acf5c622"]
+    assert row.body is BodyType.ESTATE
+    assert row.postcode == "69330"
+
+
+def test_the_advertised_cut_seeds_the_price_history(session, golf_html):
+    """Le score doit voir la baisse des le premier scan, pas au second."""
+    from carexpert.db import Listing, Pricepoint
+    from carexpert.pipeline.ingest import ingest
+
+    rows = extract_listings_from_search(
+        golf_html, base_url=GOLF_URL, source="autoscout24"
+    )
+    ingest(session, rows)
+    session.flush()
+
+    row = session.query(Listing).filter(Listing.source_id.like("1969de9f%")).one()
+    prices = [
+        p.price_eur
+        for p in session.query(Pricepoint)
+        .filter(Pricepoint.listing_id == row.id)
+        .order_by(Pricepoint.seen_at)
+        .all()
+    ]
+    assert prices == [7490, 6990]
+
+    quiet = session.query(Listing).filter(Listing.source_id.like("953c73d6%")).one()
+    assert session.query(Pricepoint).filter(Pricepoint.listing_id == quiet.id).count() == 1

@@ -37,6 +37,8 @@ class Facts:
     country: str
     seller_type: SellerType
     listing_id: int | None = None
+    #: D'ou vient l'annonce: un marche synthetique ne se compare pas au reel.
+    source: str = ""
     url: str = ""
     title: str = ""
     #: Identity of the physical vehicle, shared across sites and reposts.
@@ -51,8 +53,8 @@ def to_facts(obj: ListingData | Listing) -> Facts:
             make=obj.make, model=obj.model, year=obj.year, age_years=obj.age_years,
             km=obj.km, fuel=obj.fuel, gearbox=obj.gearbox, body=obj.body.value,
             options=list(obj.options), price_eur=obj.price_eur, country=obj.country,
-            seller_type=obj.seller_type, url=obj.url, title=obj.title,
-            fingerprint=compute_fingerprint(obj),
+            seller_type=obj.seller_type, source=obj.source, url=obj.url,
+            title=obj.title, fingerprint=compute_fingerprint(obj),
         )
     age = None
     if obj.year:
@@ -61,8 +63,9 @@ def to_facts(obj: ListingData | Listing) -> Facts:
         make=obj.make, model=obj.model, year=obj.year, age_years=age, km=obj.km,
         fuel=Fuel(obj.fuel), gearbox=Gearbox(obj.gearbox), body=obj.body,
         options=list(obj.options or []), price_eur=obj.price_eur, country=obj.country,
-        seller_type=SellerType(obj.seller_type), listing_id=obj.id, url=obj.url,
-        title=obj.title, fingerprint=obj.fingerprint or "",
+        seller_type=SellerType(obj.seller_type), listing_id=obj.id,
+        source=obj.source, url=obj.url, title=obj.title,
+        fingerprint=obj.fingerprint or "",
     )
 
 
@@ -74,6 +77,14 @@ TIERS: list[tuple[str, int, float, bool, bool, bool]] = [
     ("modele_europe",   3, 0.70, False, False, False),
     ("modele_large",    5, 1.00, False, False, False),
 ]
+
+
+#: Sources qui ne decrivent aucun marche reel. Le marche synthetique sert a
+#: mesurer la qualite du classement, jamais a fixer un prix: une Golf reelle
+#: valorisee sur des Golf inventees sort systematiquement "au-dessus du
+#: marche", avec une confiance elevee puisque les fausses annonces sont, elles,
+#: parfaitement coherentes entre elles.
+SYNTHETIC_SOURCES = ("demo",)
 
 
 def find_comparables(
@@ -100,6 +111,12 @@ def find_comparables(
             Listing.price_eur > 500,
             Listing.last_seen >= seen_since,
         ]
+        # Une annonce reelle ne se compare qu'a des annonces reelles, et
+        # reciproquement.
+        if target.source in SYNTHETIC_SOURCES:
+            conditions.append(Listing.source.in_(SYNTHETIC_SOURCES))
+        else:
+            conditions.append(Listing.source.not_in(SYNTHETIC_SOURCES))
         if target.listing_id:
             conditions.append(Listing.id != target.listing_id)
         if exclude_ids:

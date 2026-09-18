@@ -74,8 +74,14 @@ MODEL_STOPWORDS = {
 # --- Keyword tables --------------------------------------------------------
 
 FUEL_KEYWORDS: list[tuple[Fuel, tuple[str, ...]]] = [
+    # "Electrique/Essence" est le libelle AutoScout24 d'un hybride rechargeable.
+    # Le lire comme un electrique donne un vehicule sans moteur thermique et
+    # une decote de batterie qui n'a rien a voir.
     (Fuel.PHEV, ("hybride rechargeable", "plug-in", "plug in", "phev", "plugin hybrid",
-                 "hybrid rechargeable", "e-hybrid", "recharge", "gte", "gse")),
+                 "hybrid rechargeable", "e-hybrid", "recharge", "gte", "gse",
+                 "electrique/essence", "electrique / essence", "electrique-essence",
+                 "electrique/diesel", "electrique / diesel", "elektro/benzin",
+                 "elettrica/benzina", "electrico/gasolina")),
     (Fuel.ELECTRIC, ("electrique", "elektro", "elettrica", "electrico", "electric", "bev",
                      " ev ", "e-tron", "id.3", "id.4", "id.5", "zoe", "leaf", "model 3",
                      "model y", "kwh")),

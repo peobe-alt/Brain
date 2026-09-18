@@ -376,6 +376,30 @@ ARTICLE_SELLER_TYPES = {
     "p": SellerType.PRIVATE, "private": SellerType.PRIVATE, "priv": SellerType.PRIVATE,
 }
 
+#: Ce que la carte n'ecrit nulle part en `data-*` et qu'il faut lire dans son
+#: texte. Les noms de classe des sites en CSS modules se terminent par un hash
+#: qui change a chaque deploiement (`ListItemPill_text__Cr6mq`); le prefixe est
+#: le nom du composant et bouge beaucoup plus rarement, donc on ne cible que
+#: lui. Un selecteur qui ne trouve rien ne coute rien.
+CARD_SELECTORS: dict[str, tuple[str, ...]] = {
+    "previous_price": ('[class*="PreviousPrice_price"]', "[data-previous-price]",
+                       ".previous-price", ".old-price"),
+    "power": ('[class*="ListItemPill_text"]', '[class*="VehicleDetails"]',
+              ".vehicle-details", ".listing-power"),
+}
+
+#: `(\d+) ch` mais pas `24.2 kwh`: la borne de droite exclut le `h` de kWh.
+POWER_TEXT_RE = re.compile(r"(\d{2,4})\s*(?:ch|cv|hp|ps)(?![a-z0-9])", re.I)
+
+#: Code carburant porte par les cartes AutoScout24, releve dans la taxonomie
+#: que le site publie lui-meme dans sa page. Ne sert que si le schema.org ne
+#: dit rien: un code inconnu ne devine pas.
+ARTICLE_FUEL_TEXT = {
+    "b": "essence", "d": "diesel", "e": "electrique", "c": "gnv",
+    "h": "hydrogene", "l": "gpl", "m": "ethanol",
+    "2": "electrique/essence", "3": "electrique/diesel",
+}
+
 #: Attributs `data-*` d'une carte de resultat, par champ de `ListingData`.
 #: Plusieurs noms par champ: les sites ne s'accordent pas sur le vocabulaire.
 ARTICLE_FIELDS: dict[str, tuple[str, ...]] = {
@@ -445,12 +469,68 @@ def _article_data(html: str) -> dict[str, dict[str, str]]:
     return index
 
 
+def _article_elements(html: str) -> dict[str, Any]:
+    """The card elements themselves, indexed by advert id."""
+    index: dict[str, Any] = {}
+    for element in _soup(html).find_all(["article", "li", "div"]):
+        attrs = element.attrs or {}
+        for name in ("id", "data-guid", "data-listing-id", "data-id"):
+            key = str(attrs.get(name) or "").strip().lower()
+            if not key:
+                continue
+            index.setdefault(key, element)
+            match = UUID_RE.search(key)
+            if match:
+                index.setdefault(match.group(0).lower(), element)
+    return index
+
+
 def _first(data: dict[str, str], names: tuple[str, ...]) -> str | None:
     for name in names:
         value = data.get(name)
         if value:
             return value
     return None
+
+
+def _card_text(card: Any, field: str) -> str | None:
+    if card is None:
+        return None
+    for selector in CARD_SELECTORS.get(field, ()):
+        for element in card.select(selector):
+            text = element.get_text(" ", strip=True)
+            if not text:
+                continue
+            if field != "power" or POWER_TEXT_RE.search(text):
+                return text
+    return None
+
+
+def merge_card_text(listing: ListingData, card: Any) -> None:
+    """Read what the card writes as text rather than as an attribute.
+
+    Two things live only there, and both change a verdict:
+
+    * the power, which a results page shows as `235 kW (320 Ch)`. Without it
+      a Golf R and a Golf 1.2 TSI are the same car to the valuation, and the
+      Golf R comes out looking wildly overpriced.
+    * the previous price, when the seller has just cut it. Reading it means
+      a price drop is known on the first sight of the advert instead of two
+      scans later.
+    """
+    if card is None:
+        return
+
+    if listing.power_hp is None:
+        text = _card_text(card, "power")
+        match = POWER_TEXT_RE.search(text or "")
+        if match:
+            listing.power_hp = parse_power_hp(match.group(0))
+
+    previous = parse_price(_card_text(card, "previous_price"))
+    if previous and listing.price and previous > listing.price:
+        listing.extra["previous_price"] = previous
+        listing.extra["previous_price_currency"] = listing.currency
 
 
 def merge_article_data(listing: ListingData, data: dict[str, str]) -> None:
@@ -480,6 +560,17 @@ def merge_article_data(listing: ListingData, data: dict[str, str]) -> None:
         code = (_first(data, ARTICLE_FIELDS["seller"]) or "").lower()
         listing.seller_type = ARTICLE_SELLER_TYPES.get(code, SellerType.UNKNOWN)
 
+    # Le carburant du schema.org fait foi. Le code de la carte ne sert que
+    # quand il manque, et passe par le normaliseur comme n'importe quel
+    # libelle: c'est lui qui sait que "electrique/essence" est un hybride
+    # rechargeable.
+    if not listing.extra.get("fuel_text"):
+        code = (_first(data, ARTICLE_FIELDS["fuel"]) or "").lower()
+        label = ARTICLE_FUEL_TEXT.get(code)
+        if label:
+            listing.extra["fuel_text"] = label
+            listing.title = f"{listing.title} {label}".strip()
+
     # Le libelle du carburant et de la boite part au normaliseur, qui parle
     # toutes les langues des sites; les codes maison (`b`, `d`) ne lui
     # apprendraient rien et pollueraient le titre.
@@ -504,6 +595,7 @@ def extract_listings_from_search(
         return []
 
     cards = _article_data(html)
+    elements_by_id = _article_elements(html)
     listings: list[ListingData] = []
     seen: set[str] = set()
 
@@ -529,6 +621,7 @@ def extract_listings_from_search(
         seen.add(listing.source_id)
 
         merge_article_data(listing, cards.get(listing.source_id.lower(), {}))
+        merge_card_text(listing, elements_by_id.get(listing.source_id.lower()))
         listing.fill_price_eur()
         listings.append(listing)
 

@@ -162,3 +162,41 @@ def test_the_same_car_elsewhere_is_not_its_own_comparable(session):
     valuation = estimate(session, target)
     urls = {example["url"] for example in valuation.details["exemples"]}
     assert "https://siteB/marchand" not in urls
+
+
+def test_a_real_car_is_never_priced_against_invented_ones(session):
+    """Le marche synthetique ne doit jamais servir a fixer un prix reel.
+
+    Mesure avant correction, sur ce meme scenario: la Golf reelle etait
+    estimee a 6 935 EUR face a 10 comparables inventes, avec 0,58 de
+    confiance, et sortait "A FUIR". La confiance ne protege pas: de fausses
+    annonces sont parfaitement coherentes entre elles.
+    """
+    from carexpert.pipeline.ingest import ingest
+    from carexpert.schemas import Fuel, Gearbox, ListingData
+    from carexpert.sources.demo import DemoSource
+    from carexpert.schemas import SearchQuery
+    from carexpert.valuation import estimate
+    from carexpert.db import Listing
+
+    def golf(source, source_id, price, km):
+        # Des kilometrages distincts: sinon la deduplication les considere
+        # comme un seul et meme vehicule, ce qui est son role.
+        return ListingData(
+            source=source, source_id=source_id,
+            url=f"https://{source}.test/{source_id}",
+            title="Volkswagen Golf 1.6 TDI", price=price, price_eur=price,
+            make="Volkswagen", model="Golf", year=2016, km=km,
+            fuel=Fuel.DIESEL, gearbox=Gearbox.MANUAL,
+        )
+
+    ingest(session, list(DemoSource(seed=3, size=200).search(SearchQuery(limit=200))))
+    ingest(session, [golf("demo", f"fake{i}", 4000, 140000 + 900 * i) for i in range(12)])
+    ingest(session, [golf("autoscout24", f"real{i}", 12000, 140000 + 900 * i) for i in range(12)])
+    session.flush()
+
+    real = session.query(Listing).filter(Listing.source_id == "real0").one()
+    valuation = estimate(session, real)
+    assert valuation.comps_count > 0
+    # Les fausses Golf a 4 000 EUR ne tirent pas l'estimation vers le bas.
+    assert valuation.fair_price_eur > 9000
