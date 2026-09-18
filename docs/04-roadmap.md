@@ -13,7 +13,9 @@
 - diagnostic de source en une commande (`carexpert diagnose`)
 - couche experte resistante aux pannes, avec cout mesure par scan
 - deduplication des vehicules crosspostes, estimation incrementale
-- 135 tests, dont la mesure de separation affaires / pieges
+- comparables par finition, motorisation et carrosserie, avec correction
+  de puissance par paire
+- 145 tests, dont la mesure de separation affaires / pieges
 
 ## Le constat
 
@@ -116,14 +118,10 @@ entre sites.
    existent dans `SearchQuery` mais ne servent a rien, et le code postal
    n'est meme pas stocke en base. Cela demande des migrations de schema :
    ajouter Alembic d'abord, le projet n'en a pas.
-6. **Comparables par version, puissance et carrosserie** dans les paliers.
-   La version est stockee mais jamais utilisee : un Scenic dCi 110 et un
-   Scenic TCe 160 sont le meme vehicule pour l'estimateur. Sur donnees
-   reelles ce sera la premiere source de bruit.
-7. **La recherche a la demande comme objet** : une table de recherches, un
+6. **La recherche a la demande comme objet** : une table de recherches, un
    worker, un endpoint de creation, une page de resultats avec le
    classement explique. C'est le produit.
-8. **Comptes, quotas, paiement**, en dernier, quand une recherche a ete
+7. **Comptes, quotas, paiement**, en dernier, quand une recherche a ete
    utilisee par quelqu'un d'autre que son auteur.
 
 ## Ce qu'on ne fait pas maintenant
@@ -149,8 +147,7 @@ Elles couteront plus cher plus tard :
 - la date de premiere mise en circulation n'est pas stockee, l'age est donc
   arrondi a l'annee ;
 - le filtre de criteres est duplique trois fois (pipeline, veilles, demo) ;
-- aucune migration de schema : `create_all` seulement ;
-- `ruff` est declare mais la CI ne le lance pas.
+- aucune migration de schema : `create_all` seulement.
 
 ## Modele economique
 

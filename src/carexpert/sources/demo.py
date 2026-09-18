@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import random
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Iterator
 
@@ -24,20 +25,83 @@ from ..normalize import enrich
 from ..schemas import Fuel, Gearbox, ListingData, Photo, SearchQuery, SellerType
 from .base import SourceAdapter, SourceInfo
 
-# make, model, body words, new price, fuels, premium?
-CATALOG: list[tuple[str, str, str, int, tuple[Fuel, ...], bool]] = [
-    ("Peugeot", "308", "SW Allure", 31000, (Fuel.DIESEL, Fuel.PETROL), False),
-    ("Peugeot", "3008", "GT Line", 39000, (Fuel.DIESEL, Fuel.PHEV), False),
-    ("Renault", "Clio", "Intens", 22000, (Fuel.PETROL, Fuel.DIESEL), False),
-    ("Renault", "Captur", "Zen", 26000, (Fuel.PETROL, Fuel.PHEV), False),
-    ("Volkswagen", "Golf", "Confortline", 33000, (Fuel.DIESEL, Fuel.PETROL), False),
-    ("Volkswagen", "Tiguan", "Carat", 42000, (Fuel.DIESEL, Fuel.PETROL), False),
-    ("Toyota", "Yaris", "Dynamic", 23000, (Fuel.HYBRID, Fuel.PETROL), False),
-    ("Dacia", "Sandero", "Stepway", 16000, (Fuel.PETROL, Fuel.LPG), False),
-    ("BMW", "Serie 3", "Touring", 54000, (Fuel.DIESEL, Fuel.PETROL), True),
-    ("Audi", "A3", "Sportback S line", 40000, (Fuel.DIESEL, Fuel.PETROL), True),
-    ("Mercedes-Benz", "Classe C", "Break", 56000, (Fuel.DIESEL, Fuel.PHEV), True),
-    ("Tesla", "Model 3", "Long Range", 52000, (Fuel.ELECTRIC,), True),
+
+@dataclass(frozen=True, slots=True)
+class Trim:
+    """One engine-and-finish combination: the level at which a price is set.
+
+    A model name alone does not price a car. A 308 with a 100 hp diesel and a
+    308 SW with a 130 hp petrol are two different products sharing a badge,
+    and a market that ignores that is a market where the hard part of
+    valuation has been quietly removed.
+    """
+
+    version: str
+    fuel: Fuel
+    power_hp: int
+    new_price: int
+
+
+# make, model, premium?, trims
+CATALOG: list[tuple[str, str, bool, tuple[Trim, ...]]] = [
+    ("Peugeot", "308", False, (
+        Trim("Active BlueHDi 100", Fuel.DIESEL, 100, 27_500),
+        Trim("Allure PureTech 130", Fuel.PETROL, 130, 30_500),
+        Trim("SW GT BlueHDi 130", Fuel.DIESEL, 130, 35_500),
+    )),
+    ("Peugeot", "3008", False, (
+        Trim("Active PureTech 130", Fuel.PETROL, 130, 33_500),
+        Trim("GT BlueHDi 130", Fuel.DIESEL, 130, 40_000),
+        Trim("GT Hybrid 225", Fuel.PHEV, 225, 51_000),
+    )),
+    ("Renault", "Clio", False, (
+        Trim("Life SCe 65", Fuel.PETROL, 65, 17_500),
+        Trim("Intens TCe 100", Fuel.PETROL, 100, 21_500),
+        Trim("Intens Blue dCi 100", Fuel.DIESEL, 100, 23_500),
+    )),
+    ("Renault", "Captur", False, (
+        Trim("Zen TCe 90", Fuel.PETROL, 90, 23_000),
+        Trim("Intens TCe 140", Fuel.PETROL, 140, 28_500),
+        Trim("Initiale E-Tech 160", Fuel.PHEV, 160, 36_500),
+    )),
+    ("Volkswagen", "Golf", False, (
+        Trim("Life 1.0 TSI 110", Fuel.PETROL, 110, 29_500),
+        Trim("Confortline 1.6 TDI 115", Fuel.DIESEL, 115, 32_500),
+        Trim("GTD 2.0 TDI 200", Fuel.DIESEL, 200, 45_000),
+    )),
+    ("Volkswagen", "Tiguan", False, (
+        Trim("Life 1.5 TSI 130", Fuel.PETROL, 130, 36_500),
+        Trim("Carat 2.0 TDI 150", Fuel.DIESEL, 150, 44_000),
+        Trim("R-Line 2.0 TDI 200", Fuel.DIESEL, 200, 52_000),
+    )),
+    ("Toyota", "Yaris", False, (
+        Trim("Dynamic 1.0 VVT-i 72", Fuel.PETROL, 72, 18_500),
+        Trim("Design Hybride 116", Fuel.HYBRID, 116, 24_500),
+    )),
+    ("Dacia", "Sandero", False, (
+        Trim("Essential SCe 65", Fuel.PETROL, 65, 12_500),
+        Trim("Stepway TCe 90", Fuel.PETROL, 90, 16_500),
+        Trim("Stepway ECO-G 100", Fuel.LPG, 100, 17_500),
+    )),
+    ("BMW", "Serie 3", True, (
+        Trim("318d Business", Fuel.DIESEL, 150, 45_000),
+        Trim("320d xDrive Touring", Fuel.DIESEL, 190, 56_000),
+        Trim("330e M Sport", Fuel.PHEV, 292, 62_000),
+    )),
+    ("Audi", "A3", True, (
+        Trim("30 TDI Business", Fuel.DIESEL, 116, 35_500),
+        Trim("Sportback 35 TFSI S line", Fuel.PETROL, 150, 42_000),
+        Trim("Sportback 40 TFSI e", Fuel.PHEV, 204, 48_000),
+    )),
+    ("Mercedes-Benz", "Classe C", True, (
+        Trim("C 200 d Avantgarde", Fuel.DIESEL, 160, 48_000),
+        Trim("C 220 d Break AMG Line", Fuel.DIESEL, 200, 58_000),
+        Trim("C 300 e Break", Fuel.PHEV, 320, 64_000),
+    )),
+    ("Tesla", "Model 3", True, (
+        Trim("Standard Plus", Fuel.ELECTRIC, 306, 48_000),
+        Trim("Long Range AWD", Fuel.ELECTRIC, 498, 58_000),
+    )),
 ]
 
 FUEL_LABEL = {
@@ -119,8 +183,9 @@ class DemoSource(SourceAdapter):
                 return
 
     def _generate(self, rng: random.Random, index: int) -> ListingData:
-        make, model, version, new_price, fuels, premium = rng.choice(CATALOG)
-        fuel = rng.choice(fuels)
+        make, model, premium, trims = rng.choice(CATALOG)
+        trim = rng.choice(trims)
+        fuel = trim.fuel
         year = rng.randint(date.today().year - 10, date.today().year - 1)
         age = date.today().year - year + rng.random()
         km = max(3000, int(rng.gauss(14_500, 4_000) * age))
@@ -128,7 +193,7 @@ class DemoSource(SourceAdapter):
         options = rng.sample(OPTION_POOL, rng.randint(0, 6))
         city, postcode, country = rng.choice(CITIES)
 
-        fair = new_price * residual_ratio(age, km, premium, fuel)
+        fair = trim.new_price * residual_ratio(age, km, premium, fuel)
         fair *= 1 + 0.012 * len(options)                 # options add a little
         fair *= 1.05 if gearbox is Gearbox.AUTOMATIC else 1.0
 
@@ -163,19 +228,19 @@ class DemoSource(SourceAdapter):
             source_id=listing_id,
             url=f"https://demo.carexpert.local/annonce/{listing_id}",
             country=country,
-            title=f"{make} {model} {version} {int(round(price / 100) * 100)}",
+            title=f"{make} {model} {trim.version} {int(round(price / 100) * 100)}",
             description=description,
             price=round(price, -1),
             currency="EUR",
             make=make,
             model=model,
-            version=version,
+            version=trim.version,
             year=year,
             first_registration=date(year, rng.randint(1, 12), 15),
             km=km,
             fuel=fuel,
             gearbox=gearbox,
-            power_hp=rng.choice([90, 100, 110, 120, 130, 150, 190, 245]),
+            power_hp=trim.power_hp,
             owners=rng.randint(1, 4),
             city=city,
             postcode=postcode,
@@ -188,7 +253,9 @@ class DemoSource(SourceAdapter):
             posted_at=posted,
             extra={"demo_kind": kind, "demo_fair_price": round(fair, 2)},
         )
-        listing.title = f"{make} {model} {version} {FUEL_LABEL[fuel]} {year}".replace("  ", " ")
+        listing.title = (
+            f"{make} {model} {trim.version} {FUEL_LABEL[fuel]} {year}".replace("  ", " ")
+        )
         return enrich(listing)
 
 

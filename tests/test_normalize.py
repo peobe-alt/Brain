@@ -121,3 +121,19 @@ def test_cross_language_model_names_collapse():
         enrich(listing)
         labels.append((listing.make, listing.model))
     assert len(set(labels)) == 1
+
+
+def test_bmw_series_survive_every_way_of_writing_them():
+    """`Serie 3` used to normalise to `Serie`.
+
+    The suffix forms (`3er`, `3 Series`) were read and the prefix form was
+    not, so it fell through to the generic token rule. Every 1, 3, 5 and 7
+    then shared the label `Serie` and became each other's comparables.
+    """
+    from carexpert.normalize.vehicle import canonical_model
+
+    for written in ("Serie 3", "3er", "3 Series", "320d xDrive Touring", "318d"):
+        assert canonical_model("BMW", written) == "Serie 3", written
+    assert canonical_model("BMW", "Serie 5") == "Serie 5"
+    assert canonical_model("BMW", "520d") == "Serie 5"
+    assert canonical_model("BMW", "X3") == "X3"

@@ -44,7 +44,12 @@ PREMIUM_MAKES = {
 
 MODEL_RULES: dict[str, list[tuple[str, str]]] = {
     "BMW": [
-        (r"\b(?:serie\s*|series\s*|)([1-8])(?:er|\s*series|\s*serie)\b", r"Serie \1"),
+        # `Serie 3`, `3er`, `3 Series` are the same car. Reading only the
+        # suffix forms left `Serie 3` to fall through to the generic token
+        # rule, which answered `Serie`: every 1, 3, 5 and 7 then shared one
+        # label and became each other's comparables.
+        (r"\b(?:serie|series|reihe)\s*([1-8])\b", r"Serie \1"),
+        (r"\b([1-8])\s*(?:er|series|serie)\b", r"Serie \1"),
         (r"\b([1-8])\d{2}\s*(?:d|i|e|xd|xi|td)\b", r"Serie \1"),
         (r"\b(x[1-7]|z[34]|i[3-8]|ix[1-3]|ix)\b", None),
     ],

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..config import get_settings
 from ..schemas import ListingData
 from ..db import Listing
-from .adjust import fit_depreciation, vehicle_factor
+from .adjust import fit_depreciation, power_ratio, vehicle_factor
 from .comps import Facts, find_comparables, to_facts
 
 
@@ -79,7 +79,8 @@ def estimate(
     """Estimate a fair market price for one advert.
 
     Every comparable is restated on the target's terms (age, mileage,
-    gearbox, equipment, seller type, country) before the median is taken.
+    engine, gearbox, equipment, seller type, country) before the median is
+    taken.
     """
     settings = get_settings()
     min_comps = min_comps or settings.min_comps_for_confidence
@@ -101,7 +102,10 @@ def estimate(
         comp_factor = _factor(comp)
         if comp_factor <= 0 or not comp.price_eur:
             continue
-        adjusted.append(comp.price_eur * (target_factor / comp_factor))
+        # The engine is corrected pairwise rather than through the shared
+        # factor: it is only comparable when both adverts declare a power.
+        engine = power_ratio(facts.power_hp, comp.power_hp)
+        adjusted.append(comp.price_eur * (target_factor / comp_factor) * engine)
     if not adjusted:
         return Valuation(
             fair_price_eur=asking, low_eur=asking, high_eur=asking, confidence=0.0,

@@ -12,16 +12,35 @@ en plus larges :
 
 | Palier | Criteres | Confiance |
 |---|---|---|
-| `strict` | meme modele, meme energie, meme boite, ±1 an, ±30% km, meme pays | 1.00 |
-| `modele_carburant` | meme modele, meme energie, ±2 ans, ±50% km | 0.90 |
-| `modele` | meme modele, ±3 ans | 0.75 |
-| `modele_europe` | idem, tous pays | 0.60 |
-| `modele_large` | ±5 ans, tous pays | 0.40 |
+| `strict` | meme finition, meme carrosserie, puissance ±12%, meme energie, meme boite, ±1 an, ±30% km, meme pays | 1.00 |
+| `finition` | meme finition, meme carrosserie, puissance ±20%, meme energie, ±2 ans, ±50% km, meme pays | 0.92 |
+| `motorisation` | meme carrosserie, puissance ±25%, meme energie, ±3 ans, ±60% km, meme pays | 0.85 |
+| `motorisation_eu` | idem, ±70% km, tous pays | 0.72 |
+| `modele` | meme modele, puissance ±40%, ±3 ans, tous pays | 0.55 |
+| `modele_large` | meme modele, puissance ±55%, ±5 ans, tous pays | 0.40 |
 
 On s'arrete au premier palier qui atteint huit comparables.
 
+**L'ordre dans lequel on elargit compte autant que les largeurs.** La
+geographie est elargie tot, parce que `country_factor` ramene deja un prix
+etranger sur le marche local : un comparable allemand est un vrai
+comparable, simplement converti. La motorisation, la carrosserie et la
+finition sont tenues le plus longtemps possible, parce que rien ne ramene
+une voiture qui n'est tout simplement pas la meme voiture. Un Scenic 110 et
+un Scenic 160 partagent un badge et pas grand-chose d'autre ; un break n'est
+pas une berline a aucun prix.
+
+Un champ vide n'est pas un desaccord : une annonce qui ne declare ni
+puissance ni finition reste un comparable. Beaucoup de sites n'en publient
+pas, et les ecarter couterait plus de vrais comparables que la rare finition
+mal appariee.
+
 Chaque comparable est ensuite **ramene aux conditions du vehicule cible** :
-age, kilometrage, boite, options, type de vendeur, pays. Les courbes sont
+age, kilometrage, motorisation, boite, options, type de vendeur, pays. La
+puissance est corrigee par paire et non par le facteur commun, parce qu'elle
+n'a de sens que si les deux annonces la declarent : la plier dans
+`vehicle_factor` ferait deriver toutes les estimations des sources qui
+l'omettent. Les courbes sont
 multiplicatives et explicites dans `valuation/adjust.py` ; elles peuvent etre
 reajustees sur vos propres donnees via `fit_depreciation`.
 
@@ -70,13 +89,13 @@ Mesure sur le marche de demonstration, ou la verite est connue :
 
 | Categorie | Ecart au prix de marche | Score median |
 |---|---|---|
-| Vraies affaires | -21% | **84** |
-| Prix de marche | -2% | 51 |
-| Pieges | **-37%** | **30** |
+| Vraies affaires | -26% | **86** |
+| Prix de marche | +3% | 57 |
+| Pieges | **-36%** | **22** |
 
 Les pieges sont *les moins chers du marche*. Un tri par prix les placerait en
-tete. Apres analyse du texte et de l'etat, ils tombent a 30 et disparaissent
-du top 25, qui ne contient plus que des affaires reelles.
+tete. Apres analyse du texte et de l'etat, ils tombent a 22 et disparaissent
+du top 25, ou il n'en reste aucun.
 
 C'est toute la raison d'etre de l'outil.
 

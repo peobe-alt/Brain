@@ -20,13 +20,13 @@ Mesure sur un marche de test dont la verite est connue :
 
 | | Ecart au prix de marche | Score CarExpert |
 |---|---|---|
-| Vraies affaires | -21 % | **84 / 100** |
-| Annonces au prix | -2 % | 51 / 100 |
-| **Pieges** (moteur fatigue, compteur douteux, vendu en l'etat) | **-37 %** | **30 / 100** |
+| Vraies affaires | -26 % | **86 / 100** |
+| Annonces au prix | +3 % | 57 / 100 |
+| **Pieges** (moteur fatigue, compteur douteux, vendu en l'etat) | **-36 %** | **22 / 100** |
 
 Les pieges sont les annonces **les moins cheres du marche**. Un tri par prix
 les met en premiere page. Apres lecture du texte et de l'etat, ils tombent a
-30 et sortent du top 25, qui ne contient plus que de vraies affaires.
+22 et disparaissent du top 25, ou il n'en reste aucun.
 
 C'est exactement ce que le produit doit faire, et c'est verifie par un test.
 
@@ -43,19 +43,19 @@ carexpert demo
 ```
 
 ```
-250 annonces vues, 250 nouvelles, 0 ignorees
-0 collectees, 250 estimees, 0 expertisees en profondeur
+300 annonces vues, 300 nouvelles, 0 ignorees
+0 collectees, 300 estimees, 0 expertisees en profondeur
 
-  id  score  avis       vehicule                                prix    marche   ecart
-  27     92  A SAISIR   Volkswagen Golf Confortline 2021       9 140   12 901  +3 761
-  51     90  A SAISIR   Renault Captur Zen hybride 2020        7 600    9 137  +1 537
-  49     89  A SAISIR   Mercedes Classe C Break diesel 2021   13 250   17 704  +4 454
+  id  score  avis       vehicule                                 prix   marche   ecart
+ 227     95  A SAISIR   Mercedes-Benz Classe C 200 d            8 070    9 836  +1 766
+ 241     92  A SAISIR   Audi A3 Sportback 40 TFSI e             6 750    9 183  +2 433
+  99     90  A SAISIR   Renault Clio Life SCe 65 essence 2021   6 160    7 728  +1 568
 ```
 
 Puis le detail d'une annonce, avec le raisonnement complet :
 
 ```bash
-carexpert show 27
+carexpert show 227
 carexpert serve        # tableau de bord sur http://127.0.0.1:8000
 ```
 
@@ -248,7 +248,7 @@ pas.
 
 ```bash
 pip install -e ".[dev,photos]"
-pytest                      # 121 tests
+pytest                      # 145 tests
 carexpert sources           # sources disponibles
 carexpert diagnose -s autoscout24 --url "..."   # valider une source
 ```

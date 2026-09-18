@@ -53,6 +53,15 @@ OPTION_VALUE = 0.010          # per detected option
 OPTION_CAP = 0.09             # never more than +9% for equipment
 AUTOMATIC_PREMIUM = 1.05
 
+#: How much of a price gap the engine explains, within one model. Prices
+#: follow power far less than proportionally: a Golf with twice the output
+#: does not cost twice as much.
+POWER_EXPONENT = 0.35
+#: The engine alone never explains more than this much of a gap. Past it we
+#: are comparing two different cars, and the tier ladder should have kept
+#: them apart in the first place.
+POWER_RATIO_CAP = 1.35
+
 
 def age_rate(make: str | None, fuel: Fuel) -> float:
     rate = AGE_RATE_PREMIUM if is_premium(make) else AGE_RATE_MAINSTREAM
@@ -111,6 +120,21 @@ def vehicle_factor(
         * seller_factor(seller_type)
         * country_factor(country)
     )
+
+
+def power_ratio(target_hp: int | None, comp_hp: int | None) -> float:
+    """Restate a comparable's price for the target's engine.
+
+    Pairwise on purpose, unlike every other curve here: an engine is only
+    comparable when both sides declare one. Folding this into
+    `vehicle_factor` would scale the target against comparables that never
+    published a power figure, and most sources publish it only sometimes:
+    every estimate on those sources would drift by the target's own output.
+    """
+    if not target_hp or not comp_hp or target_hp <= 0 or comp_hp <= 0:
+        return 1.0
+    ratio = (target_hp / comp_hp) ** POWER_EXPONENT
+    return max(1 / POWER_RATIO_CAP, min(POWER_RATIO_CAP, ratio))
 
 
 def fit_depreciation(samples: list[tuple[float, int, float]]) -> tuple[float, float] | None:
