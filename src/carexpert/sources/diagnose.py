@@ -19,7 +19,7 @@ from urllib.parse import urljoin, urlparse
 
 from ..normalize import enrich
 from ..schemas import ListingData
-from .browser import BotProtection, BrowserUnavailable
+from .browser import BotProtection, BrowserUnavailable, named_protection
 from .fetcher import FetchError, PoliteFetcher, RobotsDisallowed
 from .structured import (
     extract_from_page,
@@ -88,6 +88,10 @@ class DiagnosticReport:
     #: Ce qui a empeche d'aller plus loin sans faire echouer la lecture:
     #: typiquement un navigateur absent alors que la page en demandait un.
     note: str = ""
+    #: La protection qui a repondu a la place de la page, nommee. Un refus
+    #: rendu comme "HTTP 403" se lit comme une panne, alors que c'est une
+    #: decision du site: les deux ne se corrigent pas pareil.
+    protection: str = ""
 
     @property
     def usable_samples(self) -> int:
@@ -99,6 +103,15 @@ class DiagnosticReport:
             return "echec", self.error
         if not self.robots_allows:
             return "interdit", "le robots.txt du site interdit cette URL"
+        # Un refus n'est pas une panne. Une panne, on la relance; un refus,
+        # non: c'est une decision du site, et la seule suite correcte est de
+        # ne pas insister. Les nommer pareil menerait a insister.
+        if self.status in (401, 403, 429):
+            named = f" ({self.protection})" if self.protection else ""
+            return "bloque", (
+                f"le site refuse la requete: HTTP {self.status}{named}, "
+                f"{self.page_bytes} octets au lieu d'une page de resultats"
+            )
         if self.status >= 400:
             return "echec", f"le site repond HTTP {self.status}"
         # La page de resultats se suffit parfois a elle-meme: elle publie ses
@@ -127,7 +140,7 @@ class DiagnosticReport:
     def actions(self) -> list[str]:
         """What to do next, concretely."""
         level, _ = self.verdict()
-        if level == "echec":
+        if level in ("echec", "bloque"):
             return self._failure_actions()
         if level == "interdit":
             return [
@@ -207,13 +220,20 @@ class DiagnosticReport:
         `verified: true`: un diagnostic qui declare exploitable une source
         injoignable est pire que pas de diagnostic du tout.
         """
-        blocked = "anti-bot" in self.error or self.status in (401, 403, 429)
-        if blocked:
+        refused = (
+            bool(self.protection)
+            or "anti-bot" in self.error
+            or self.status in (401, 403, 429)
+        )
+        if refused:
+            named = f" ({self.protection})" if self.protection else ""
             return [
-                "Le site a refuse la requete. Ne pas insister: contourner une "
+                f"Le site a refuse la requete{named}. Ne pas insister: contourner une "
                 "protection changerait la nature juridique de l'acte.",
                 "Verifier d'abord que ce refus vient bien du site: depuis un reseau "
                 "d'entreprise ou un conteneur, un proxy sortant repond 403 a sa place.",
+                "Un rendu navigateur (--browser) lit la page comme un visiteur le "
+                "ferait; si le site repond encore par un defi, la collecte s'arrete.",
                 "Sinon: alertes natives du site puis `carexpert analyse-url`, ou "
                 "l'agregateur `leparking` qui republie une partie de ces annonces.",
                 "A l'usage serieux: demander un acces professionnel au site.",
@@ -314,7 +334,9 @@ def diagnose_search(
         report.elapsed_s = time.monotonic() - started
         report.status = page.status
         report.page_bytes = len(page.text)
+        report.note = getattr(fetcher, "escalation_blocked", "")
         if not page.ok:
+            report.protection = named_protection(page.text) or ""
             return report
 
         links = extract_listing_links(page.text, url, pattern)

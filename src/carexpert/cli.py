@@ -351,6 +351,7 @@ VERDICT_DIAG = {
     "js": ("red", "SITE RENDU EN JAVASCRIPT"),
     "interdit": ("red", "INTERDIT PAR LE ROBOTS.TXT"),
     "echec": ("red", "SITE INJOIGNABLE"),
+    "bloque": ("red", "REFUS DU SITE"),
 }
 
 
@@ -420,6 +421,8 @@ def diagnose(
             f"[green]{report.results_listings}[/green] lues sans ouvrir d'annonce "
             f"({report.results_complete} completes)",
         )
+    if report.protection:
+        table.add_row("refus", f"[red]{escape(report.protection)}[/red]")
     if report.note:
         table.add_row("non verifie", f"[yellow]{escape(report.note.splitlines()[0])}[/yellow]")
     if report.suggested_pattern:

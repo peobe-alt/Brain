@@ -110,11 +110,24 @@ def test_missing_data_points_at_the_selectors():
     assert any("selectors" in action for action in report.actions())
 
 
-def test_http_error_is_reported_plainly():
+def test_a_refusal_is_reported_as_a_refusal_not_a_breakdown():
+    """Un 403 est une decision du site, pas une panne.
+
+    Les afficher pareil menait a la meme suite - relancer - alors qu'un
+    refus ne se relance pas, il se respecte.
+    """
     fetcher = FakeFetcher({"/recherche": SEARCH_OK}, status=403)
     report = diagnose_search("https://site.fr/recherche", source="test", fetcher=fetcher)
-    assert report.verdict()[0] == "echec"
+    assert report.verdict()[0] == "bloque"
     assert "403" in report.verdict()[1]
+    assert any("Ne pas insister" in action for action in report.actions())
+
+
+def test_a_server_error_is_still_a_breakdown():
+    fetcher = FakeFetcher({"/recherche": SEARCH_OK}, status=500)
+    report = diagnose_search("https://site.fr/recherche", source="test", fetcher=fetcher)
+    assert report.verdict()[0] == "echec"
+    assert "500" in report.verdict()[1]
 
 
 def test_pattern_suggestion_picks_the_repeated_shape():

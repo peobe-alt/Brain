@@ -105,15 +105,25 @@ def page_carries_adverts(html: str, *, url: str = "https://example.invalid/") ->
     return bool(extract_listings_from_state(html, base_url=url, source="probe", limit=1))
 
 
+def named_protection(html: str) -> str | None:
+    """The anti-bot product whose marker the body carries, if any.
+
+    Separate from `detect_challenge` because naming and refusing are two
+    different facts: a 403 is a refusal whether or not we can say who signed
+    it, and "HTTP 403" is not the name of a protection.
+    """
+    lowered = html.lower() if len(html) < CHALLENGE_MAX_CHARS else ""
+    return next((marker for marker in CHALLENGE_MARKERS if marker in lowered), None)
+
+
 def detect_challenge(html: str, status: int) -> str | None:
-    """Name the protection that answered, or None if the page is the page.
+    """Name what answered instead of the page, or None if the page is the page.
 
     A refusal is a refusal whatever it carries, so a 401, 403 or 429 always
     counts; a 200 counts only when the body is both short and marked, which
     is what an interstitial looks like.
     """
-    lowered = html.lower() if len(html) < CHALLENGE_MAX_CHARS else ""
-    named = next((marker for marker in CHALLENGE_MARKERS if marker in lowered), None)
+    named = named_protection(html)
     if status in (401, 403, 429):
         return named or f"HTTP {status}"
     return named

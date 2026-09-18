@@ -574,7 +574,9 @@ def test_a_failed_diagnosis_never_declares_the_source_usable():
 
     for report in (unreachable, refused):
         actions = report.actions()
-        assert report.verdict()[0] == "echec"
+        # Injoignable et refuse sont deux echecs distincts; aucun des deux
+        # n'autorise a declarer la source exploitable.
+        assert report.verdict()[0] in ("echec", "bloque")
         # La phrase du fourre-tout, mot pour mot: c'est elle qui sortait.
         assert not any("Source exploitable" in action for action in actions), actions
         assert not any(
@@ -641,3 +643,53 @@ def test_a_missing_browser_does_not_throw_away_the_page_already_fetched(leboncoi
     assert result.text == shell
     assert result.rendered is False
     assert "browser" in fetcher.escalation_blocked
+
+
+def test_a_refusal_is_named_not_reported_as_a_breakdown():
+    """Mesure sur leboncoin: HTTP 403, 1004 octets, en 0,1 seconde.
+
+    "SITE INJOIGNABLE - le site repond HTTP 403" se lit comme une panne, et
+    une panne, on la relance. Un refus, non: c'est une decision du site, et
+    la seule suite correcte est de ne pas insister. Les deux ne se corrigent
+    pas pareil, donc ils ne s'affichent pas pareil.
+    """
+    from carexpert.sources.diagnose import diagnose_search
+
+    interstitial = (
+        "<html><head><title>leboncoin.fr</title></head><body>"
+        "<script src='https://geo.captcha-delivery.com/captcha/?initialCid=AHrl'></script>"
+        "</body></html>"
+    )
+
+    class _Refusing(PoliteFetcher):
+        def _transport(self, url: str) -> FetchResult:
+            return FetchResult(url=url, status=403, text=interstitial)
+
+    report = diagnose_search(
+        "https://www.leboncoin.fr/recherche?category=2",
+        source="leboncoin", fetcher=_Refusing(respect_robots=False, delay=0),
+    )
+
+    level, phrase = report.verdict()
+    assert level == "bloque"
+    assert "captcha-delivery" in report.protection
+    assert "refuse la requete" in phrase
+    assert "captcha-delivery" in phrase          # la protection est nommee
+    assert str(report.page_bytes) in phrase      # la taille dit l'interstitiel
+    assert any("Ne pas insister" in action for action in report.actions())
+    assert not any("verified: true" in a for a in report.actions() if a.startswith("Passer"))
+
+
+def test_a_plain_error_without_a_marker_stays_a_breakdown():
+    """Un 500, ou un 404 sur une URL mal recopiee, n'est pas un refus."""
+    from carexpert.sources.diagnose import diagnose_search
+
+    class _Broken(PoliteFetcher):
+        def _transport(self, url: str) -> FetchResult:
+            return FetchResult(url=url, status=500, text="<html>Erreur serveur</html>")
+
+    report = diagnose_search("https://site.fr/x", source="test",
+                             fetcher=_Broken(respect_robots=False, delay=0))
+    assert report.verdict()[0] == "echec"
+    assert report.protection == ""
+    assert "500" in report.verdict()[1]
