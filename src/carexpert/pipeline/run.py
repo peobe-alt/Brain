@@ -16,10 +16,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Iterable
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from ..alerts import (
@@ -49,6 +49,8 @@ log = logging.getLogger(__name__)
 class ScanReport:
     collected: dict[str, IngestStats] = field(default_factory=dict)
     valued: int = 0
+    #: Adverts left alone because their valuation was still fresh.
+    skipped_fresh: int = 0
     deep_analyzed: int = 0
     #: Deep analyses that fell back to the rule layer, with the reason why.
     degraded: list[str] = field(default_factory=list)
@@ -63,6 +65,10 @@ class ScanReport:
         parts = [
             f"{collected} annonces collectees ({new} nouvelles)",
             f"{self.valued} estimees",
+        ]
+        if self.skipped_fresh:
+            parts.append(f"{self.skipped_fresh} deja a jour")
+        parts += [
             f"{self.deep_analyzed} expertisees en profondeur",
         ]
         if self.degraded:
@@ -81,8 +87,15 @@ def scan(
     deep: int = 0,
     notify: bool = False,
     search_url: str | None = None,
+    revalue_all: bool = False,
 ) -> ScanReport:
-    """Run one full pass and return what it found."""
+    """Run one full pass and return what it found.
+
+    By default only what needs it is re-valued: adverts that are new, whose
+    price moved, or whose valuation has gone stale. `revalue_all` forces the
+    whole base through, which is what you want after changing the valuation
+    curves.
+    """
     report = ScanReport()
 
     for name in sources:
@@ -107,17 +120,29 @@ def scan(
     session.flush()
 
     # --- Wide pass ---------------------------------------------------------
-    candidates = _candidates(session, query)
+    touched = set()
+    for stats in report.collected.values():
+        touched |= stats.touched_ids
+    candidate_ids = _candidate_ids(session, query, touched=touched, revalue_all=revalue_all)
+    report.skipped_fresh = _candidate_count(session, query) - len(candidate_ids)
+
+    batch_size = get_settings().valuation_batch_size
     scored: list[tuple[Listing, Valuation, ExpertReport, DealScore]] = []
-    for row in candidates:
-        listing = from_row(row)
-        valuation = estimate(session, row)
-        result = analyze_offline(listing, valuation.as_dict())
-        score = score_deal(listing, valuation, result.report, price_dropped=_dropped(session, row))
-        _persist(session, row, valuation, result.report, score, model=result.model,
-                 photos_analyzed=0)
-        scored.append((row, valuation, result.report, score))
-        report.valued += 1
+    for start in range(0, len(candidate_ids), batch_size):
+        chunk = candidate_ids[start : start + batch_size]
+        rows = session.execute(select(Listing).where(Listing.id.in_(chunk))).scalars().all()
+        dropped = _price_drops(session, chunk)
+        for row in rows:
+            listing = from_row(row)
+            valuation = estimate(session, row)
+            result = analyze_offline(listing, valuation.as_dict())
+            score = score_deal(listing, valuation, result.report,
+                               price_dropped=row.id in dropped)
+            _persist(session, row, valuation, result.report, score, model=result.model,
+                     photos_analyzed=0)
+            scored.append((row, valuation, result.report, score))
+            report.valued += 1
+        session.flush()
 
     scored.sort(key=lambda item: -item[3].score)
 
@@ -167,8 +192,7 @@ def scan(
     return report
 
 
-def _candidates(session: Session, query: SearchQuery) -> list[Listing]:
-    """Active adverts worth (re)evaluating in this pass."""
+def _query_conditions(query: SearchQuery) -> list:
     conditions = [Listing.active.is_(True), Listing.price_eur.is_not(None)]
     if query.make:
         conditions.append(Listing.make == query.make)
@@ -184,19 +208,63 @@ def _candidates(session: Session, query: SearchQuery) -> list[Listing]:
         conditions.append(Listing.km <= query.km_max)
     if query.countries:
         conditions.append(Listing.country.in_(query.countries))
-    statement = select(Listing).where(*conditions).order_by(Listing.last_seen.desc()).limit(1000)
+    return conditions
+
+
+def _candidate_count(session: Session, query: SearchQuery) -> int:
+    from sqlalchemy import func
+
+    return session.execute(
+        select(func.count(Listing.id)).where(*_query_conditions(query))
+    ).scalar_one()
+
+
+def _candidate_ids(
+    session: Session, query: SearchQuery, *, touched: set[int], revalue_all: bool
+) -> list[int]:
+    """Adverts that need (re)valuing in this pass.
+
+    There is no arbitrary ceiling here: a cap would silently leave part of
+    the base unscored, which is invisible in testing and very visible once a
+    real market is loaded. Volume is handled by batching instead, and by
+    skipping what is still fresh.
+    """
+    conditions = _query_conditions(query)
+    if not revalue_all:
+        cutoff = datetime.utcnow() - timedelta(hours=get_settings().valuation_ttl_hours)
+        freshness = or_(
+            Listing.analyzed_at.is_(None),
+            Listing.analyzed_at < cutoff,
+            # A price move invalidates the valuation whoever ingested it, and
+            # whenever: the comparison is against stored state, not against
+            # what this particular run happens to have seen.
+            and_(
+                Listing.price_changed_at.is_not(None),
+                Listing.analyzed_at < Listing.price_changed_at,
+            ),
+        )
+        if touched:
+            freshness = or_(freshness, Listing.id.in_(touched))
+        conditions.append(freshness)
+    statement = select(Listing.id).where(*conditions).order_by(Listing.last_seen.desc())
     return list(session.execute(statement).scalars().all())
 
 
-def _dropped(session: Session, row: Listing) -> bool:
+def _price_drops(session: Session, listing_ids: list[int]) -> set[int]:
+    """Which of these adverts have come down in price, in one query."""
     from ..db import Pricepoint
 
-    prices = session.execute(
-        select(Pricepoint.price_eur)
-        .where(Pricepoint.listing_id == row.id)
-        .order_by(Pricepoint.seen_at.asc())
-    ).scalars().all()
-    return len(prices) >= 2 and prices[-1] < prices[0] - 1
+    rows = session.execute(
+        select(Pricepoint.listing_id, Pricepoint.price_eur, Pricepoint.seen_at)
+        .where(Pricepoint.listing_id.in_(listing_ids))
+        .order_by(Pricepoint.listing_id, Pricepoint.seen_at.asc())
+    ).all()
+    first: dict[int, float] = {}
+    last: dict[int, float] = {}
+    for listing_id, price, _ in rows:
+        first.setdefault(listing_id, price)
+        last[listing_id] = price
+    return {lid for lid, price in last.items() if price < first.get(lid, price) - 1}
 
 
 def _persist(

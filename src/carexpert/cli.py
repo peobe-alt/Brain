@@ -108,6 +108,10 @@ def scan(
     limit: int = typer.Option(100, "--limit"),
     deep: int = typer.Option(0, "--deep", help="Nombre d'annonces expertisees par Claude (photos)."),
     notify: bool = typer.Option(False, "--notify", help="Declencher les alertes des watchlists."),
+    revalue_all: bool = typer.Option(
+        False, "--revalue-all",
+        help="Reestimer toute la base, meme ce qui est deja a jour (apres modification des courbes).",
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
     """Collecter, estimer, expertiser et classer des annonces."""
@@ -120,7 +124,7 @@ def scan(
     with console.status("Collecte et analyse en cours..."):
         with session_scope() as session:
             report = run_scan(session, sources=source, query=query, deep=deep,
-                              notify=notify, search_url=url)
+                              notify=notify, search_url=url, revalue_all=revalue_all)
 
     console.print(f"\n[bold]{report.summary()}[/bold]")
     for error in report.errors:

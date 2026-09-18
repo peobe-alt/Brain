@@ -25,6 +25,9 @@ class IngestStats:
     updated: int = 0
     price_drops: list[tuple[str, float, float]] = field(default_factory=list)
     skipped: int = 0
+    #: Rows that are new or whose price moved: they must be re-valued now,
+    #: whatever the freshness rule says.
+    touched_ids: set[int] = field(default_factory=set)
 
     def summary(self) -> str:
         drops = len(self.price_drops)
@@ -51,6 +54,7 @@ def ingest(session: Session, listings: Iterable[ListingData]) -> IngestStats:
             )
         ).scalar_one_or_none()
 
+        price_moved = False
         if row is None:
             row = Listing(
                 fingerprint=fingerprint(listing),
@@ -62,13 +66,20 @@ def ingest(session: Session, listings: Iterable[ListingData]) -> IngestStats:
             )
             session.add(row)
             stats.created += 1
+            price_moved = True
         else:
             stats.updated += 1
-            if row.price_eur and listing.price_eur and listing.price_eur < row.price_eur - 1:
-                stats.price_drops.append((listing.url, row.price_eur, listing.price_eur))
+            if row.price_eur and listing.price_eur and abs(listing.price_eur - row.price_eur) > 1:
+                price_moved = True
+                if listing.price_eur < row.price_eur:
+                    stats.price_drops.append((listing.url, row.price_eur, listing.price_eur))
 
         _apply(row, listing)
+        if price_moved:
+            row.price_changed_at = datetime.utcnow()
         session.flush()
+        if price_moved:
+            stats.touched_ids.add(row.id)
 
         last_price = session.execute(
             select(Pricepoint)

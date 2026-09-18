@@ -87,9 +87,10 @@ def test_watchlist_alerts_fire_once(session):
                  notify=True)
     alerts_after_first = session.execute(select(Alert)).scalars().all()
     second = scan(session, sources=["demo"], query=SearchQuery(limit=150, countries=["FR"]),
-                  notify=True)
+                  notify=True, revalue_all=True)
     alerts_after_second = session.execute(select(Alert)).scalars().all()
     assert first.valued > 0 and second.valued > 0
+    assert alerts_after_first, "la premiere passe doit alerter"
     assert len(alerts_after_first) == len(alerts_after_second)
 
 
@@ -103,3 +104,58 @@ def test_scan_ranks_real_bargains_above_traps(demo_market):
     kinds = [(rows[i].raw or {}).get("demo_kind") for i in top_ids]
     assert kinds.count("trap") == 0
     assert kinds.count("bargain") >= 8
+
+
+def test_the_whole_base_is_scored_not_a_capped_slice(session):
+    """A cap would leave most of a real market silently unscored."""
+    from carexpert.sources.demo import DemoSource
+
+    listings = list(
+        DemoSource(seed=5, size=1400).search(SearchQuery(limit=1400, countries=["FR"]))
+    )
+    ingest(session, listings)
+    session.flush()
+    total = len(session.execute(select(Listing)).scalars().all())
+    assert total > 1000, "il faut depasser l'ancien plafond pour que le test ait un sens"
+
+    report = scan(session, sources=[], query=SearchQuery(limit=5000, countries=["FR"]))
+    assert report.valued == total
+    unscored = session.execute(select(Listing).where(Listing.score.is_(None))).scalars().all()
+    assert unscored == []
+
+
+def test_a_second_scan_skips_what_is_still_fresh(session):
+    query = SearchQuery(limit=200, countries=["FR"])
+    first = scan(session, sources=["demo"], query=query)
+    assert first.valued > 0
+    assert first.skipped_fresh == 0
+
+    second = scan(session, sources=[], query=query)
+    assert second.valued == 0
+    assert second.skipped_fresh == first.valued
+
+
+def test_a_price_change_forces_a_new_valuation(session):
+    ingest(session, [_listing(price=15_000)])
+    session.flush()
+    scan(session, sources=[], query=SearchQuery(limit=10, countries=["FR"]))
+
+    # Same advert, lower price: it must be re-valued despite being fresh.
+    stats = ingest(session, [_listing(price=12_000)])
+    session.flush()
+    assert stats.touched_ids
+    report = scan(session, sources=[], query=SearchQuery(limit=10, countries=["FR"]))
+    assert report.valued == 1
+
+
+def test_price_drops_are_detected_in_one_query(session):
+    from carexpert.pipeline.run import _price_drops
+
+    ingest(session, [_listing(source_id="a", price=15_000),
+                     _listing(source_id="b", price=9_000)])
+    session.flush()
+    ingest(session, [_listing(source_id="a", price=13_000)])
+    session.flush()
+    ids = [row.id for row in session.execute(select(Listing)).scalars().all()]
+    dropped = _price_drops(session, ids)
+    assert len(dropped) == 1

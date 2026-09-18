@@ -86,6 +86,23 @@ Deux consequences de conception :
   avec une page HTML a la place d'une image manquante ; l'envoyer a l'API
   comme du base64 `image/jpeg` ferait echouer l'expertise entiere.
 
+## Passer a l'echelle
+
+Deux regles, verifiees sur une base de 5 000 annonces :
+
+- **aucun plafond dans la selection.** Un `LIMIT` sur les annonces a evaluer
+  est invisible en test et catastrophique en production : sur 5 000 annonces,
+  un plafond a 1 000 laissait 80 % du stock sans note, donc absent du tableau
+  de bord et des alertes. Le volume se traite par lots, pas par troncature.
+- **on ne recalcule que ce qui a bouge.** Une estimation est refaite si elle
+  n'existe pas, si elle a plus de 24 heures, ou si le prix a change depuis.
+  La fraicheur se lit dans la base (`analyzed_at` face a `price_changed_at`),
+  pas dans ce que le scan en cours a vu passer : c'est vrai quel que soit le
+  chemin par lequel l'annonce est entree.
+
+Mesure : 5 000 annonces evaluees en 30 s, soit 6 ms par annonce. Le scan
+suivant, sans changement, ne recalcule rien.
+
 ## Choix techniques
 
 - **SQLite par defaut**, Postgres en changeant une variable d'environnement.

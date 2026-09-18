@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     # --- Scoring / alerting ------------------------------------------------
     alert_threshold: int = 75
     min_comps_for_confidence: int = 8
+    #: A valuation drifts as new comparables arrive, so it is redone once a
+    #: day even when the advert itself has not moved.
+    valuation_ttl_hours: int = 24
+    #: Listings valued per batch. Only affects memory, not the result.
+    valuation_batch_size: int = 500
 
     # --- Notifications -----------------------------------------------------
     telegram_bot_token: str | None = None

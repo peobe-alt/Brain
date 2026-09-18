@@ -16,6 +16,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -36,7 +37,11 @@ class Listing(Base):
     """A vehicle advert as last seen on a source site."""
 
     __tablename__ = "listings"
-    __table_args__ = (UniqueConstraint("source", "source_id", name="uq_source_listing"),)
+    __table_args__ = (
+        UniqueConstraint("source", "source_id", name="uq_source_listing"),
+        # Comparables are always looked up by make and model together.
+        Index("ix_listings_make_model", "make", "model"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     fingerprint: Mapped[str] = mapped_column(String(64), index=True)
@@ -72,6 +77,10 @@ class Listing(Base):
     raw: Mapped[dict] = mapped_column(JSON, default=dict)
 
     posted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    #: Set whenever the asking price changes. Compared against `analyzed_at`
+    #: to decide if a valuation is stale, which keeps the rule correct however
+    #: the advert got into the database.
+    price_changed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     first_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
