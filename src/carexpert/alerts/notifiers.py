@@ -115,9 +115,14 @@ REGISTRY: dict[str, type] = {
 }
 
 
-def get_notifiers(names: list[str]) -> list[Notifier]:
+def get_notifiers(names: list[str] | None) -> list[Notifier]:
+    """Build the channels to deliver on.
+
+    `None` means "nothing was configured", and falls back to the console.
+    An empty list is an explicit choice: record the alert, notify no one.
+    """
     notifiers: list[Notifier] = []
-    for name in names or ["console"]:
+    for name in ["console"] if names is None else names:
         factory = REGISTRY.get(name)
         if factory is None:
             log.warning("canal de notification inconnu: %s", name)

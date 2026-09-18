@@ -166,3 +166,58 @@ def test_price_drops_are_detected_in_one_query(session):
     ids = [row.id for row in session.execute(select(Listing)).scalars().all()]
     dropped = _price_drops(session, ids)
     assert len(dropped) == 1
+
+
+def test_a_watchlist_created_later_still_fires(session):
+    """The bug this guards against: alerts tied to what a run re-valued."""
+    from carexpert.alerts import create_watchlist
+
+    query = SearchQuery(limit=200, countries=["FR"])
+    first = scan(session, sources=["demo"], query=query, notify=True)
+    assert first.valued > 0
+    assert first.alerts_sent == 0          # aucune veille n'existait encore
+
+    create_watchlist(session, "tardive", SearchQuery(countries=["FR"]), sources=["demo"],
+                     min_score=70, channels=[])
+    session.flush()
+
+    # Rien n'a bouge depuis: aucune annonce n'est reevaluee, et pourtant les
+    # affaires deja en base doivent remonter.
+    second = scan(session, sources=[], query=query, notify=True)
+    assert second.valued == 0
+    assert second.alerts_sent > 0
+    assert session.execute(select(Alert)).scalars().all()
+
+
+def test_alerts_are_capped_per_run(session):
+    from carexpert.alerts import create_watchlist
+    from carexpert.pipeline.run import dispatch_alerts
+
+    scan(session, sources=["demo"], query=SearchQuery(limit=200, countries=["FR"]))
+    create_watchlist(session, "large", SearchQuery(countries=["FR"]), sources=["demo"],
+                     min_score=0, channels=[])
+    session.flush()
+    sent = dispatch_alerts(session, max_per_watchlist=5)
+    assert sent == 5, "une nouvelle veille ne doit pas deverser toute la base d'un coup"
+
+
+def test_an_alerted_car_is_never_announced_twice(session):
+    from carexpert.alerts import create_watchlist
+    from carexpert.pipeline.run import dispatch_alerts
+
+    scan(session, sources=["demo"], query=SearchQuery(limit=200, countries=["FR"]))
+    create_watchlist(session, "unique", SearchQuery(countries=["FR"]), sources=["demo"],
+                     min_score=70, channels=[])
+    session.flush()
+    first = dispatch_alerts(session)
+    second = dispatch_alerts(session)
+    assert first > 0
+    assert second == 0
+
+
+def test_an_empty_channel_list_notifies_nobody(capsys):
+    from carexpert.alerts import get_notifiers
+
+    assert get_notifiers([]) == []
+    assert [n.name for n in get_notifiers(None)] == ["console"]
+    assert capsys.readouterr().out == ""

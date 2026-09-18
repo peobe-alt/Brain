@@ -187,7 +187,7 @@ def scan(
     ]
 
     if notify:
-        report.alerts_sent = dispatch_alerts(session, scored)
+        report.alerts_sent = dispatch_alerts(session)
 
     return report
 
@@ -335,10 +335,14 @@ def _valuation_columns(payload: dict) -> dict:
     }
 
 
-def dispatch_alerts(
-    session: Session, scored: list[tuple[Listing, Valuation, ExpertReport, DealScore]]
-) -> int:
-    """Notify every watchlist about the deals it asked for, exactly once."""
+def dispatch_alerts(session: Session, *, max_per_watchlist: int = 20) -> int:
+    """Notify every watchlist about the deals it asked for, exactly once.
+
+    Deliberately independent of what this run happened to re-value: a
+    watchlist created today must fire on a car scored yesterday, and a scan
+    that re-values nothing can still have alerts to send. Everything needed
+    is read back from stored state.
+    """
     watchlists = list(
         session.execute(select(Watchlist).where(Watchlist.active.is_(True))).scalars().all()
     )
@@ -348,18 +352,85 @@ def dispatch_alerts(
     sent = 0
     for watchlist in watchlists:
         threshold = watchlist.min_score or settings.alert_threshold
-        notifiers = get_notifiers(list(watchlist.channels or ["console"]))
-        for row, valuation, report, score in scored:
-            if score.score < threshold or not matches(watchlist, row):
+        notifiers = get_notifiers(
+            list(watchlist.channels) if watchlist.channels is not None else None
+        )
+        rows = session.execute(
+            select(Listing)
+            .where(
+                Listing.active.is_(True),
+                Listing.score.is_not(None),
+                Listing.score >= threshold,
+            )
+            .order_by(Listing.score.desc())
+            .limit(max_per_watchlist * 5)
+        ).scalars().all()
+
+        delivered_count = 0
+        for row in rows:
+            if delivered_count >= max_per_watchlist:
+                log.info("veille %s: alertes plafonnees a %s pour cette passe",
+                         watchlist.name, max_per_watchlist)
+                break
+            if not matches(watchlist, row) or already_alerted(session, watchlist.id, row.id):
                 continue
-            if already_alerted(session, watchlist.id, row.id):
+            loaded = _load_analysis(session, row)
+            if loaded is None:
                 continue
+            valuation, report, score = loaded
             listing = from_row(row)
             subject, body = format_alert(listing, score, valuation, report)
-            delivered = [n.name for n in notifiers if n.send(subject, body,
-                          json_payload(listing, score, valuation, report))]
-            if delivered:
-                record_alert(session, watchlist, row, score.score, delivered,
-                             json_payload(listing, score, valuation, report))
-                sent += 1
+            payload = json_payload(listing, score, valuation, report)
+            channels = [n.name for n in notifiers if n.send(subject, body, payload)]
+            # With no channel configured the alert is still recorded, so a
+            # later run does not re-announce the same car.
+            record_alert(session, watchlist, row, score.score, channels, payload)
+            delivered_count += 1
+            sent += 1
+        watchlist.last_run_at = datetime.utcnow()
     return sent
+
+
+def _load_analysis(
+    session: Session, row: Listing
+) -> tuple[Valuation, ExpertReport, DealScore] | None:
+    """Rebuild the objects an alert needs from what was stored."""
+    from ..scoring.deal import ScoreFactor
+
+    valuation_row = session.execute(
+        select(ValuationRow).where(ValuationRow.listing_id == row.id)
+    ).scalar_one_or_none()
+    analysis = session.execute(
+        select(Analysis).where(Analysis.listing_id == row.id)
+    ).scalar_one_or_none()
+    if valuation_row is None or analysis is None or not analysis.report:
+        return None
+
+    valuation = Valuation(
+        fair_price_eur=valuation_row.fair_price_eur,
+        low_eur=valuation_row.low_eur,
+        high_eur=valuation_row.high_eur,
+        confidence=valuation_row.confidence,
+        comps_count=valuation_row.comps_count,
+        method=valuation_row.method,
+        delta_eur=valuation_row.delta_eur,
+        delta_pct=valuation_row.delta_pct,
+        details=dict(valuation_row.details or {}),
+    )
+
+    payload = dict(analysis.report)
+    score_payload = payload.pop("score", {})
+    try:
+        report = ExpertReport.model_validate(payload)
+    except Exception as exc:  # pragma: no cover - stored by an older version
+        log.warning("rapport illisible pour %s: %s", row.url, exc)
+        return None
+
+    score = DealScore(
+        score=score_payload.get("score", row.score or 0),
+        headline=score_payload.get("headline", ""),
+        factors=[ScoreFactor(**factor) for factor in score_payload.get("factors", [])],
+        net_gain_eur=score_payload.get("net_gain_eur", 0.0),
+        verdict=score_payload.get("verdict", row.verdict or "check"),
+    )
+    return valuation, report, score
