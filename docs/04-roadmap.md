@@ -12,7 +12,8 @@
 - tableau de bord web et API JSON
 - diagnostic de source en une commande (`carexpert diagnose`)
 - couche experte resistante aux pannes, avec cout mesure par scan
-- 94 tests, dont la mesure de separation affaires / pieges
+- deduplication des vehicules crosspostes, estimation incrementale
+- 121 tests, dont la mesure de separation affaires / pieges
 
 ## Prochaines etapes, par ordre de valeur
 
