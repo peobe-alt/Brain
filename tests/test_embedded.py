@@ -697,3 +697,93 @@ def test_a_plain_error_without_a_marker_stays_a_breakdown():
     assert report.verdict()[0] == "echec"
     assert report.protection == ""
     assert "500" in report.verdict()[1]
+
+
+def test_a_site_that_works_in_plain_http_never_pays_for_a_browser(
+    leboncoin_html, monkeypatch, tmp_path
+):
+    """Mesure sur un scan complet: la derniere page declenchait un rendu.
+
+    La pagination s'arrete sur une page sans annonce (invariant 19). Avec
+    l'escalade, cette page vide etait prise pour une page a rendre, donc
+    chaque scan se terminait par un lancement de navigateur inutile - sur un
+    site dont la premiere page avait pourtant prouve qu'il n'en demande pas.
+    """
+    monkeypatch.setenv("CAREXPERT_CACHE_DIR", str(tmp_path / "cache"))
+    pages = [leboncoin_html, "<html><body><div id='app'></div></body></html>"]
+
+    class _Paginated(BrowserFetcher):
+        def _plain(self, url: str) -> FetchResult:
+            return FetchResult(url=url, status=200, text=pages[min(self.served, 1)])
+
+        def _render(self, url: str) -> FetchResult:
+            self.renders += 1
+            return FetchResult(url=url, status=200, text="<html>rendu</html>", rendered=True)
+
+    fetcher = _Paginated(respect_robots=False, delay=0)
+    fetcher.served = 0
+    monkeypatch.setattr(PoliteFetcher, "_transport", _Paginated._plain)
+
+    first = fetcher.get("https://site.fr/recherche?page=1", use_cache=False)
+    fetcher.served = 1
+    second = fetcher.get("https://site.fr/recherche?page=2", use_cache=False)
+
+    assert len(extract_listings_from_state(
+        first.text, base_url="https://site.fr/", source="t")) == 6
+    assert second.rendered is False
+    assert fetcher.renders == 0, "la page de fin de pagination ne se rend pas"
+
+
+def test_an_unknown_host_still_escalates(monkeypatch, tmp_path):
+    """La memoire ne vaut que par hote: un site muet reste un site a rendre."""
+    monkeypatch.setenv("CAREXPERT_CACHE_DIR", str(tmp_path / "cache"))
+
+    class _Empty(BrowserFetcher):
+        def _plain(self, url: str) -> FetchResult:
+            return FetchResult(url=url, status=200,
+                               text="<html><body><div id='app'></div></body></html>")
+
+        def _render(self, url: str) -> FetchResult:
+            self.renders += 1
+            return FetchResult(url=url, status=200, text="<html>rendu</html>", rendered=True)
+
+    fetcher = _Empty(respect_robots=False, delay=0)
+    monkeypatch.setattr(PoliteFetcher, "_transport", _Empty._plain)
+
+    result = fetcher.get("https://jamais-vu.fr/recherche", use_cache=False)
+
+    assert fetcher.renders == 1
+    assert result.rendered is True
+
+
+def test_the_end_of_the_results_is_not_reported_as_a_breakdown(caplog):
+    """La derniere page d'un parcours n'a pas d'annonces, et c'est normal.
+
+    L'annoncer comme "le site rend ses resultats en JavaScript, ou le motif
+    de lien a change" envoie chercher un defaut inexistant, a chaque scan.
+    """
+    import logging
+
+    from carexpert.sources.configured import ConfiguredSource
+
+    class _TwoPages:
+        def __init__(self):
+            self.calls = 0
+
+        def get(self, url, *, use_cache=True):
+            self.calls += 1
+            page = (FIXTURES / "leboncoin_search.html").read_text(encoding="utf-8")
+            body = page if self.calls == 1 else "<html><body></body></html>"
+            return FetchResult(url=url, status=200, text=body)
+
+        def close(self):
+            return None
+
+    source = ConfiguredSource({"name": "leboncoin", "max_pages": 3}, fetcher=_TwoPages())
+    with caplog.at_level(logging.INFO):
+        collected = list(source.search_url("https://site.fr/recherche", limit=50))
+
+    assert len(collected) == 6
+    warnings = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
+    assert not any("JavaScript" in message for message in warnings), warnings
+    assert any("plus d'annonces" in r.message for r in caplog.records)

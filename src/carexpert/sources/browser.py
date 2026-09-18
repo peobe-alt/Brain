@@ -35,6 +35,8 @@ import logging
 import re
 from typing import Any
 
+from urllib.parse import urlparse
+
 from ..config import get_settings
 from .fetcher import FetchResult, PoliteFetcher, TransportError
 
@@ -164,6 +166,11 @@ class BrowserFetcher(PoliteFetcher):
         #: Pourquoi l'escalade n'a pas pu avoir lieu, pour que le diagnostic
         #: le dise au lieu de laisser croire que le site n'a pas repondu.
         self.escalation_blocked = ""
+        #: Hotes dont une requete simple a deja rendu des annonces. Un site
+        #: qui n'a pas besoin d'un navigateur a la premiere page n'en a pas
+        #: besoin a la derniere: sans cette memoire, chaque scan finit par un
+        #: rendu inutile sur la page vide qui clot la pagination.
+        self._plain_works: set[str] = set()
         self._playwright: Any = None
         self._browser: Any = None
         self._context: Any = None
@@ -175,7 +182,14 @@ class BrowserFetcher(PoliteFetcher):
             return self._render(url)
 
         plain = super()._transport(url)
+        host = urlparse(url).netloc
         if plain.ok and page_carries_adverts(plain.text, url=url):
+            self._plain_works.add(host)
+            return plain
+        if host in self._plain_works:
+            # Ce site sert ses annonces en HTTP simple: une page sans annonce
+            # est une page de fin de pagination, pas une page a rendre.
+            log.debug("%s: page sans annonce sur un site qui n'en demande pas", url)
             return plain
         reason = "aucune annonce dans la reponse" if plain.ok else f"HTTP {plain.status}"
         log.info("%s: %s, passage au rendu navigateur", url, reason)

@@ -25,6 +25,9 @@ class Valuation:
     comps_count: int
     method: str
     delta_eur: float
+    #: Ecart au prix juste, en **fraction** et non en pourcentage: 0,21 veut
+    #: dire 21 % sous le marche. Positif = moins cher que la cote. Tous les
+    #: affichages multiplient par 100; le nom, lui, ment depuis le debut.
     delta_pct: float
     details: dict = field(default_factory=dict)
 

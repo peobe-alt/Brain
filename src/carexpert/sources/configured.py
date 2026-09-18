@@ -190,11 +190,18 @@ class ConfiguredSource(SourceAdapter):
         pattern = self.config.get("listing_link_pattern", r"/\d{5,}")
         links = extract_listing_links(page.text, url, pattern)
         if not links:
-            log.warning(
-                "%s: aucune annonce trouvee sur %s. Le site rend probablement ses "
-                "resultats en JavaScript, ou le motif de lien a change.",
-                self.name, url,
-            )
+            if seen:
+                # Une page sans annonce apres des pages pleines, c'est la fin
+                # des resultats (invariant 19). L'annoncer comme une panne de
+                # configuration envoie chercher un defaut qui n'existe pas, a
+                # chaque scan.
+                log.info("%s: plus d'annonces sur %s", self.name, url)
+            else:
+                log.warning(
+                    "%s: aucune annonce trouvee sur %s. Le site rend probablement ses "
+                    "resultats en JavaScript, ou le motif de lien a change.",
+                    self.name, url,
+                )
         taken = 0
         for link in links:
             if taken >= limit:
