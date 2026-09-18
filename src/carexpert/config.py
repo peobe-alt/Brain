@@ -37,7 +37,10 @@ class Settings(BaseSettings):
     model: str = "claude-opus-5"
     max_photos: int = 8
     photo_max_edge: int = 1024
-    analysis_max_tokens: int = 8000
+    # Thinking tokens count against this ceiling. Too low and the report is
+    # truncated mid-sentence, which costs a full retry: 8k was not enough
+    # with adaptive thinking and a dozen photos.
+    analysis_max_tokens: int = 16000
 
     # --- Collection policy -------------------------------------------------
     # These defaults are deliberately conservative: one polite request every

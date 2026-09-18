@@ -63,6 +63,29 @@ donc separee en deux :
 cents. Et une analyse profonde n'est jamais ecrasee par une passe large
 ulterieure.
 
+Compter environ 0,10 a 0,15 EUR par expertise approfondie. Les tokens
+reellement consommes sont enregistres par annonce et totalises a la fin du
+scan : le montant affiche est mesure, pas estime.
+
+## Degradation plutot qu'echec
+
+La couche experte ne leve jamais d'exception. Une limite de debit, un refus
+du modele, une reponse tronquee, une cle invalide : chaque cas retombe sur
+l'analyse par regles avec une raison lisible, et le scan poursuit. Un lot de
+dix expertises ne se perd pas sur un incident.
+
+Deux consequences de conception :
+
+- **tous les champs du rapport sont obligatoires.** Un champ optionnel dans
+  le schema est un champ que le modele peut omettre, et il omet en priorite
+  ce qui demande du travail : les alertes, les questions au vendeur, les
+  leviers de negociation. Une liste vide reste une reponse valable, mais
+  c'est alors une decision, pas un silence ;
+- **le type reel d'une photo est lu dans ses octets**, jamais dans son
+  en-tete `Content-Type`. Les sites d'annonces repondent regulierement 200
+  avec une page HTML a la place d'une image manquante ; l'envoyer a l'API
+  comme du base64 `image/jpeg` ferait echouer l'expertise entiere.
+
 ## Choix techniques
 
 - **SQLite par defaut**, Postgres en changeant une variable d'environnement.

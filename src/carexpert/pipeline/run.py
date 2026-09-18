@@ -33,6 +33,7 @@ from ..alerts import (
 from ..config import get_settings
 from ..db import Analysis, Listing, Valuation as ValuationRow, Watchlist
 from ..expert import ExpertAnalyst, analyze_offline
+from ..expert.cost import Cost, zero
 from ..expert.schema import ExpertReport
 from ..schemas import SearchQuery
 from ..scoring import DealScore, score_deal
@@ -49,6 +50,9 @@ class ScanReport:
     collected: dict[str, IngestStats] = field(default_factory=dict)
     valued: int = 0
     deep_analyzed: int = 0
+    #: Deep analyses that fell back to the rule layer, with the reason why.
+    degraded: list[str] = field(default_factory=list)
+    cost: Cost = field(default_factory=zero)
     alerts_sent: int = 0
     errors: list[str] = field(default_factory=list)
     top: list[dict] = field(default_factory=list)
@@ -56,10 +60,17 @@ class ScanReport:
     def summary(self) -> str:
         collected = sum(s.seen for s in self.collected.values())
         new = sum(s.created for s in self.collected.values())
-        return (
-            f"{collected} annonces collectees ({new} nouvelles), {self.valued} estimees, "
-            f"{self.deep_analyzed} expertisees en profondeur, {self.alerts_sent} alertes"
-        )
+        parts = [
+            f"{collected} annonces collectees ({new} nouvelles)",
+            f"{self.valued} estimees",
+            f"{self.deep_analyzed} expertisees en profondeur",
+        ]
+        if self.degraded:
+            parts.append(f"{len(self.degraded)} en repli")
+        parts.append(f"{self.alerts_sent} alertes")
+        if self.cost.eur:
+            parts.append(f"cout {self.cost.eur:.2f} EUR")
+        return ", ".join(parts)
 
 
 def scan(
@@ -115,12 +126,13 @@ def scan(
         analyst = ExpertAnalyst()
         for row, valuation, _, _ in scored[:deep]:
             listing = from_row(row)
-            try:
-                result = analyst.analyze(listing, valuation=valuation.as_dict())
-            except Exception as exc:
-                log.warning("expertise approfondie impossible pour %s: %s", row.url, exc)
-                report.errors.append(f"expertise {row.source_id}: {exc}")
+            # `analyze` never raises: a failure comes back degraded so one bad
+            # call cannot cost the rest of the batch.
+            result = analyst.analyze(listing, valuation=valuation.as_dict())
+            if result.degraded:
+                report.degraded.append(f"{row.title[:40]}: {result.degraded_reason}")
                 continue
+            report.cost = report.cost + result.cost()
             score = score_deal(listing, valuation, result.report,
                                price_dropped=_dropped(session, row))
             _persist(session, row, valuation, result.report, score, model=result.model,

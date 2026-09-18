@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from ..config import get_settings
 from ..normalize.signals import Signal, detect_signals, repair_budget
 from ..schemas import ListingData
+from .cost import Cost, estimate_cost, zero
 from .knowledge import Defect, match_defects
 from .photos import PreparedPhoto, prepare_photos
 from .prompts import SYSTEM_PROMPT, build_dossier
@@ -38,10 +39,21 @@ class AnalysisResult:
     photos_analyzed: int
     input_tokens: int = 0
     output_tokens: int = 0
+    #: Set when the model could not be used and the rule layer stood in.
+    degraded_reason: str = ""
 
     @property
     def used_model(self) -> bool:
         return self.model != "heuristique"
+
+    @property
+    def degraded(self) -> bool:
+        return bool(self.degraded_reason)
+
+    def cost(self) -> Cost:
+        if not self.used_model:
+            return zero()
+        return estimate_cost(self.model, self.input_tokens, self.output_tokens)
 
 
 class ExpertAnalyst:
@@ -78,6 +90,13 @@ class ExpertAnalyst:
         with_photos: bool = True,
         max_photos: int | None = None,
     ) -> AnalysisResult:
+        """Analyse one advert. Never raises: a failure degrades to the rules.
+
+        A deep pass runs over a batch of shortlisted cars. One rate limit or
+        one malformed page must not cost the whole batch, so every failure
+        returns the rule-based report with the reason attached, and the
+        caller decides what to say about it.
+        """
         signals = detect_signals(listing.title, listing.description)
         defects = match_defects(listing)
         photos: list[PreparedPhoto] = (
@@ -91,27 +110,40 @@ class ExpertAnalyst:
             defects=defects,
             photo_count=len(photos),
         )
+        # Images first, question last: the text refers to photo indices, so
+        # the order of the blocks is the order the indices mean.
         content: list[dict] = [photo.as_block() for photo in photos]
         content.append({"type": "text", "text": dossier})
 
-        response = self.client.messages.parse(
-            model=self.model,
-            max_tokens=self.max_tokens,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": content}],
-            output_format=ExpertReport,
-            thinking={"type": "adaptive"},
-        )
-
-        if getattr(response, "stop_reason", None) == "refusal":
-            log.warning("analyse refusee par le modele pour %s", listing.url)
-            return AnalysisResult(
-                report=heuristic_report(listing, signals, defects, valuation),
-                model="heuristique",
-                photos_analyzed=0,
+        try:
+            response = self.client.messages.parse(
+                model=self.model,
+                max_tokens=self.max_tokens,
+                system=SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": content}],
+                output_format=ExpertReport,
+                thinking={"type": "adaptive"},
             )
+        except Exception as exc:
+            reason = _explain(exc)
+            log.warning("expertise impossible pour %s: %s", listing.url, reason)
+            return self._fallback(listing, signals, defects, valuation, reason)
 
-        report = response.parsed_output
+        stop_reason = getattr(response, "stop_reason", None)
+        if stop_reason == "refusal":
+            details = getattr(response, "stop_details", None)
+            category = getattr(details, "category", None) or "non precisee"
+            return self._fallback(listing, signals, defects, valuation,
+                                  f"analyse refusee par le modele (categorie {category})")
+        if stop_reason == "max_tokens":
+            return self._fallback(listing, signals, defects, valuation,
+                                  "reponse tronquee: augmenter CAREXPERT_ANALYSIS_MAX_TOKENS")
+
+        report = getattr(response, "parsed_output", None)
+        if report is None:
+            return self._fallback(listing, signals, defects, valuation,
+                                  "le modele n'a pas renvoye de rapport exploitable")
+
         usage = getattr(response, "usage", None)
         return AnalysisResult(
             report=report,
@@ -119,6 +151,17 @@ class ExpertAnalyst:
             photos_analyzed=len(photos),
             input_tokens=getattr(usage, "input_tokens", 0) or 0,
             output_tokens=getattr(usage, "output_tokens", 0) or 0,
+        )
+
+    def _fallback(
+        self, listing: ListingData, signals: list[Signal], defects: list[Defect],
+        valuation: dict | None, reason: str,
+    ) -> AnalysisResult:
+        return AnalysisResult(
+            report=heuristic_report(listing, signals, defects, valuation),
+            model="heuristique",
+            photos_analyzed=0,
+            degraded_reason=reason,
         )
 
 
@@ -231,6 +274,28 @@ def heuristic_report(
         verdict=verdict,
         confidence=45 if not listing.description else 60,
     )
+
+
+def _explain(exc: Exception) -> str:
+    """Turn an SDK exception into a sentence that says what to do about it."""
+    try:
+        import anthropic
+    except ImportError:  # pragma: no cover - dependency present in prod
+        return str(exc)
+
+    if isinstance(exc, anthropic.AuthenticationError):
+        return "cle API refusee: verifier ANTHROPIC_API_KEY"
+    if isinstance(exc, anthropic.NotFoundError):
+        return f"modele introuvable ({exc}): verifier CAREXPERT_MODEL"
+    if isinstance(exc, anthropic.RateLimitError):
+        return "limite de debit atteinte apres plusieurs tentatives: reduire --deep ou reessayer"
+    if isinstance(exc, anthropic.BadRequestError):
+        return f"requete refusee: {exc}"
+    if isinstance(exc, anthropic.APIStatusError):
+        return f"erreur API HTTP {exc.status_code}"
+    if isinstance(exc, anthropic.APIConnectionError):
+        return "connexion a l'API impossible: verifier le reseau"
+    return f"{type(exc).__name__}: {exc}"
 
 
 def _severity(weight: float) -> str:

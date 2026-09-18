@@ -11,7 +11,8 @@
 - score explique, veilles, alertes (console, webhook, Telegram, email)
 - tableau de bord web et API JSON
 - diagnostic de source en une commande (`carexpert diagnose`)
-- 66 tests, dont la mesure de separation affaires / pieges
+- couche experte resistante aux pannes, avec cout mesure par scan
+- 94 tests, dont la mesure de separation affaires / pieges
 
 ## Prochaines etapes, par ordre de valeur
 

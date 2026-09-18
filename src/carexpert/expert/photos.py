@@ -20,7 +20,26 @@ from ..schemas import Photo
 log = logging.getLogger(__name__)
 
 MAX_BYTES = 4_500_000          # per-image API ceiling, with margin
-SUPPORTED = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+
+#: Magic bytes, because `Content-Type` lies. Classified sites routinely
+#: answer 200 with an HTML error page for a missing photo, and sending that
+#: to the API as base64 `image/jpeg` fails the whole analysis of the advert.
+MAGIC: tuple[tuple[bytes, str], ...] = (
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"GIF87a", "image/gif"),
+    (b"GIF89a", "image/gif"),
+)
+
+
+def sniff_media_type(content: bytes) -> str | None:
+    """The real type of these bytes, or None if they are not an image."""
+    for prefix, media_type in MAGIC:
+        if content.startswith(prefix):
+            return media_type
+    if content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+        return "image/webp"
+    return None
 
 
 @dataclass(slots=True)
@@ -67,10 +86,13 @@ def prepare_photos(
                 response = client.get(photo.url)
                 if response.status_code != 200 or not response.content:
                     continue
-                media_type = (response.headers.get("content-type") or "").split(";")[0].lower()
                 content = response.content
-                if media_type not in SUPPORTED:
-                    media_type = "image/jpeg"
+                media_type = sniff_media_type(content)
+                if media_type is None:
+                    # Not an image at all: an HTML error page, a placeholder,
+                    # or a format the API does not accept. Skip it silently.
+                    log.debug("photo ignoree (contenu non image) %s", photo.url)
+                    continue
                 content, media_type = _downscale(content, media_type, max_edge)
                 if len(content) > MAX_BYTES:
                     continue

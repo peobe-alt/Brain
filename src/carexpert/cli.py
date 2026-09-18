@@ -125,6 +125,10 @@ def scan(
     console.print(f"\n[bold]{report.summary()}[/bold]")
     for error in report.errors:
         console.print(f"[red]erreur[/red] {error}")
+    for reason in report.degraded:
+        console.print(f"[yellow]repli sur les regles[/yellow] {reason}")
+    if report.cost.eur:
+        console.print(f"[dim]Expertise approfondie : {report.cost.label()}[/dim]")
     if report.top:
         _print_deals_table(report.top)
     console.print("\n[dim]Detail d'une annonce : carexpert show <id>[/dim]")

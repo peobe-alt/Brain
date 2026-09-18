@@ -23,7 +23,9 @@ class RedFlag(BaseModel):
     label: str = Field(description="Le probleme, en une phrase courte")
     severity: Severity
     evidence: str = Field(description="D'ou vient le constat: photo n, description, incoherence")
-    estimated_cost_eur: int = Field(default=0, description="Cout de remise en etat estime, 0 si inconnu")
+    estimated_cost_eur: int = Field(
+        description="Cout de remise en etat estime en euros, 0 si non chiffrable"
+    )
 
 
 class ExpertReport(BaseModel):
@@ -35,20 +37,27 @@ class ExpertReport(BaseModel):
         ge=0, le=100,
         description="Coherence entre kilometrage, annee, usure visible, prix et description",
     )
-    photo_findings: list[PhotoFinding] = Field(default_factory=list)
-    red_flags: list[RedFlag] = Field(default_factory=list)
-    strengths: list[str] = Field(default_factory=list, description="Points reellement rassurants")
+    # Every list below is required on purpose. With a default value the field
+    # becomes optional in the generated JSON schema, and a model that may skip
+    # a field often does: we would lose exactly the parts that carry the value
+    # (the red flags, the questions, the negotiation levers). An empty list is
+    # a legitimate answer; silence is not.
+    photo_findings: list[PhotoFinding] = Field(
+        description="Une entree par observation faite sur une photo, vide si aucune photo"
+    )
+    red_flags: list[RedFlag] = Field(
+        description="Tout ce qui doit alerter l'acheteur, vide si rien"
+    )
+    strengths: list[str] = Field(description="Points reellement rassurants, vide si aucun")
     known_issues_to_check: list[str] = Field(
-        default_factory=list, description="Faiblesses connues de cette motorisation a verifier"
+        description="Faiblesses connues de cette motorisation a verifier"
     )
     questions_to_seller: list[str] = Field(
-        default_factory=list, description="Questions precises a poser avant de se deplacer"
+        description="Questions precises a poser avant de se deplacer"
     )
-    negotiation_levers: list[str] = Field(
-        default_factory=list, description="Arguments chiffres pour negocier"
-    )
+    negotiation_levers: list[str] = Field(description="Arguments chiffres pour negocier")
     estimated_repairs_eur: int = Field(
-        default=0, description="Budget de remise en etat a prevoir, en euros"
+        description="Budget de remise en etat a prevoir en euros, 0 si rien a prevoir"
     )
     verdict: Literal["grab", "check", "avoid"] = Field(
         description="grab: a saisir, check: a voir de pres, avoid: a fuir"

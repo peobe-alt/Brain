@@ -178,8 +178,36 @@ avant d'etre renotees.
 
 `--deep 10` sur un scan de 800 annonces, c'est dix appels modele.
 
+### Ce que ca coute
+
+Une expertise approfondie, c'est le dossier de l'annonce plus une dizaine de
+photos redimensionnees : de l'ordre de **0,10 a 0,15 EUR** par vehicule au
+tarif Opus 5. Dix par jour, tous les jours, tiennent dans une quarantaine
+d'euros par mois. A comparer aux quelques centaines d'euros que represente
+une seule bonne affaire detectee, ou evitee.
+
+L'ordre de grandeur ci-dessus est calcule, pas mesure : l'outil compte les
+tokens reellement consommes et affiche le montant a la fin de chaque scan,
+donc le premier vrai scan donnera votre chiffre.
+
+```
+12 annonces collectees, 340 estimees, 10 expertisees en profondeur, cout 1.34 EUR
+```
+
 Sans cle API, l'outil fonctionne quand meme : l'expertise se fait alors sur
 les regles seules, et le dit.
+
+### Quand l'appel echoue
+
+Un scan approfondi passe sur une dizaine de vehicules d'affilee. Une limite
+de debit, un refus, une reponse tronquee ou une photo qui n'en est pas une ne
+doivent pas couter le lot entier : chaque echec retombe sur l'analyse par
+regles, avec la raison affichee en clair, et le scan continue.
+
+```
+repli sur les regles  Volkswagen Golf 1.6 TDI: limite de debit atteinte apres
+                      plusieurs tentatives: reduire --deep ou reessayer
+```
 
 ---
 
@@ -220,7 +248,7 @@ pas.
 
 ```bash
 pip install -e ".[dev,photos]"
-pytest                      # 66 tests
+pytest                      # 94 tests
 carexpert sources           # sources disponibles
 carexpert diagnose -s autoscout24 --url "..."   # valider une source
 ```
