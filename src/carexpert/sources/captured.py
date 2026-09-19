@@ -71,16 +71,25 @@ def page_origin(html: str) -> str | None:
     return extract_opengraph(html).get("og:url") or None
 
 
-def source_of(html: str, *, fallback: str | None = None) -> str | None:
+def source_of(
+    html: str, *, url: str | None = None, fallback: str | None = None
+) -> str | None:
     """Which configured source a captured page belongs to.
 
     Asked of the page rather than of the user: they saved it from the site,
     the site wrote its own address in it, and one less thing to get wrong.
+    An address given by the caller wins over the page's canonical link: the
+    extension reads the browser's own address bar, which is where the person
+    actually is, while a canonical link can point at a tidier page.
     """
     from . import source_for_url
 
-    origin = page_origin(html)
-    return (source_for_url(origin) if origin else None) or fallback
+    for candidate in (url, page_origin(html)):
+        if candidate:
+            name = source_for_url(candidate)
+            if name:
+                return name
+    return fallback
 
 
 def read_capture(
@@ -94,7 +103,7 @@ def read_capture(
     if not html or not html.strip():
         return []
 
-    name = source or source_of(html) or "capture"
+    name = source or source_of(html, url=url) or "capture"
     origin = url or page_origin(html) or f"https://{name}.invalid/"
 
     rows = extract_listings_from_search(html, base_url=origin, source=name)

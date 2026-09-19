@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Form, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -35,6 +36,15 @@ app = FastAPI(
     title="CarExpert",
     description="Scanner d'annonces auto avec expertise assistee",
     lifespan=lifespan,
+)
+# L'extension parle depuis l'origine du site consulte (leboncoin.fr), pas
+# depuis la notre. Sans cette ouverture, le navigateur refuse la reponse
+# avant meme que le serveur l'ait envoyee.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"^(https?://.*|chrome-extension://.*|moz-extension://.*)$",
+    allow_methods=["POST", "GET", "OPTIONS"],
+    allow_headers=["*"],
 )
 app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(WEB_DIR / "templates"))
@@ -215,6 +225,104 @@ def api_listing(listing_id: int):
         payload["description"] = row.description
         payload["report"] = analysis.report if analysis else None
         return payload
+
+
+#: Ce que l'extension affiche sur une carte. Court par necessite: la pastille
+#: se pose sur une annonce du site, dans une liste que l'utilisateur fait
+#: defiler, pas dans notre tableau de bord.
+def _verdict_payload(row: Listing) -> dict[str, Any]:
+    fair = row.fair_price_eur or 0
+    price = row.price_eur or 0
+    return {
+        "source_id": row.source_id,
+        "url": row.url,
+        "score": row.score,
+        "verdict": row.verdict or "unknown",
+        "verdict_label": VERDICT_LABEL.get(row.verdict or "", "Non analyse"),
+        "price_eur": price,
+        "fair_price_eur": round(fair) if fair else None,
+        "net_gain_eur": round(fair - price) if fair else None,
+        # En pourcentage, et le nom le dit: `delta_pct` porte une fraction
+        # ailleurs dans le code, et cette ambiguite ne franchira pas l'API.
+        "delta_percent": round((row.delta_pct or 0) * 100, 1),
+        "title": row.title,
+        "km": row.km,
+        "year": row.year,
+    }
+
+
+@app.post("/api/capture")
+async def capture(request: Request) -> dict[str, Any]:
+    """Read a page the user is looking at, and answer with verdicts.
+
+    The companion's whole surface. The browser extension posts the page it
+    is displaying; this values every advert on it and hands back one verdict
+    per advert, keyed by the site's own identifier so the extension can put
+    each badge on the right card.
+
+    Nothing is fetched here. If nobody opened the page, there is nothing to
+    read - which is exactly what keeps this path open on sites that refuse
+    automated collection.
+    """
+    payload = await request.json()
+    html = payload.get("html") or ""
+    url = payload.get("url") or None
+    if not html.strip():
+        raise HTTPException(status_code=400, detail="page vide")
+
+    from ..pipeline.ingest import ingest
+    from ..sources.captured import read_capture
+
+    listings = read_capture(html, url=url)
+    if not listings:
+        return {"count": 0, "verdicts": [], "source": None,
+                "detail": "aucune annonce reconnue sur cette page"}
+
+    source = listings[0].source
+    keys = [(row.source, row.source_id) for row in listings]
+    with session_scope() as session:
+        ingest(session, listings)
+        session.flush()
+        _value_captured(session, keys)
+        rows = session.execute(
+            select(Listing).where(
+                Listing.source == source,
+                Listing.source_id.in_([key[1] for key in keys]),
+            )
+        ).scalars().all()
+        verdicts = [_verdict_payload(row) for row in rows]
+
+    verdicts.sort(key=lambda item: -(item["score"] or 0))
+    return {"count": len(verdicts), "source": source, "verdicts": verdicts}
+
+
+def _value_captured(session: Any, keys: list[tuple[str, str]]) -> None:
+    """Value and score exactly the adverts the page carried.
+
+    Not the whole base: the person is waiting in front of their browser, and
+    a capture must answer in the time it takes to glance at the panel.
+    """
+    from ..expert import analyze_offline
+    from ..pipeline.ingest import from_row
+    from ..pipeline.run import _persist
+    from ..scoring import score_deal
+    from ..valuation import estimate
+
+    sources = {key[0] for key in keys}
+    identifiers = [key[1] for key in keys]
+    rows = session.execute(
+        select(Listing).where(
+            Listing.source.in_(sources), Listing.source_id.in_(identifiers)
+        )
+    ).scalars().all()
+    for row in rows:
+        listing = from_row(row)
+        valuation = estimate(session, row)
+        result = analyze_offline(listing, valuation.as_dict())
+        score = score_deal(listing, valuation, result.report)
+        _persist(session, row, valuation, result.report, score,
+                 model=result.model, photos_analyzed=0)
+    session.flush()
 
 
 @app.get("/api/health")

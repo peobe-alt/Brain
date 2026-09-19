@@ -12,6 +12,7 @@ pytest -q                                  # suite complete
 carexpert demo                             # demonstration hors ligne
 carexpert diagnose -s autoscout24 --url .. # valider une source
 carexpert import page.html                 # lire une page ouverte par vous
+# extension/ : les memes verdicts poses sur les pages que vous consultez
 carexpert serve                            # tableau de bord
 ```
 
@@ -179,6 +180,14 @@ Chacun vient d'un defaut reel, mesure :
    seul, et c'est ce qui laisse cette voie ouverte quand les autres sont
    fermees. Payer un service pour imiter une empreinte TLS et faire tourner
    des adresses residentielles reste du contournement, sous-traite.
+33. **Une extension pose ses pastilles dans la page de quelqu'un d'autre.**
+   Tout y est prefixe `carexpert-` et rien n'est redefini globalement : une
+   regle qui deborde casse la mise en page du site, et c'est nous que
+   l'utilisateur accuse. Meme famille que l'invariant 23, a ceci pres que la
+   feuille de style n'est plus la notre. Et c'est le service worker qui
+   appelle CarExpert, jamais le script de contenu : celui-ci s'execute dans
+   la page, donc sous la politique de securite du site, qui interdit
+   d'appeler une adresse inconnue.
 
 ## Collecte
 
@@ -205,6 +214,7 @@ src/carexpert/
   scoring/     score explique
   alerts/      veilles et notifications
   api/ web/    tableau de bord et API JSON
+extension/     compagnon Chrome: annote les annonces que vous consultez
 ```
 
 ## Tests

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <style>
+    body { width: 260px; margin: 0; padding: 14px;
+           font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    h1 { font-size: 14px; margin: 0 0 8px; }
+    p { margin: 0 0 10px; color: #555; }
+    label { display: block; font-size: 12px; margin-bottom: 4px; color: #555; }
+    input { width: 100%; box-sizing: border-box; padding: 6px 8px;
+            border: 1px solid #ccc; border-radius: 5px; font-size: 12px; }
+    button { width: 100%; margin-top: 10px; padding: 7px; border: 0;
+             border-radius: 5px; background: #1a7f4b; color: #fff;
+             font-size: 13px; cursor: pointer; }
+    .note { font-size: 11px; color: #777; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>CarExpert</h1>
+  <p>Marque les bonnes affaires sur la page que vous consultez.</p>
+  <label for="endpoint">CarExpert tourne sur</label>
+  <input id="endpoint" type="text" placeholder="http://127.0.0.1:8000"/>
+  <button id="run">Analyser cette page</button>
+  <p class="note">Demarrez le serveur avec <code>carexpert serve</code>.</p>
+  <script src="popup.js"></script>
+</body>
+</html>

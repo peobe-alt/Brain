@@ -161,6 +161,12 @@ carexpert import ~/Downloads/leboncoin-twingo.html
 carexpert import ~/Downloads/annonces/          # un dossier entier
 ```
 
+Au quotidien, l'extension Chrome (`extension/`) fait la meme chose sans
+enregistrer de fichier : elle publie la page affichee sur `POST /api/capture`
+et repose un verdict par annonce sur les cartes. Verifie dans un vrai
+Chromium, sur une page servie sous l'origine du site avec sa politique de
+securite active : 6 annonces, 6 pastilles. Voir `extension/README.md`.
+
 `sources/captured.py` lit ces pages avec les memes paliers qu'un scan, et
 n'a aucun code reseau : sans page ouverte par vous, il n'y a rien a lire.
 C'est exactement ce qui laisse cette voie ouverte quand les autres sont

@@ -1,0 +1,57 @@
+/* Les pastilles se posent sur les cartes du site, pas dans notre tableau de
+ * bord. Tout est prefixe `carexpert-` et rien n'est redefini globalement:
+ * une classe qui deborde sur le CSS du site casse sa mise en page, et c'est
+ * l'utilisateur qui nous accuse (invariant 23). */
+
+.carexpert-card {
+  position: relative !important;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  transition: outline-color 0.15s ease;
+}
+.carexpert-card-grab { outline-color: #1a7f4b; }
+.carexpert-card-check { outline-color: #b8860b; }
+.carexpert-card-avoid { outline-color: #a32020; }
+
+.carexpert-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2147483000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: calc(100% - 16px);
+  padding: 6px 9px;
+  border-radius: 6px;
+  font: 600 12px/1.25 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #fff;
+  background: #333;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+.carexpert-grab { background: #1a7f4b; }
+.carexpert-check { background: #b8860b; }
+.carexpert-avoid { background: #a32020; }
+.carexpert-unknown { background: #5a5f66; }
+
+.carexpert-head { letter-spacing: 0.02em; }
+.carexpert-detail { font-weight: 400; font-size: 11px; opacity: 0.92; }
+
+.carexpert-banner {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483001;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font: 500 13px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #fff;
+  background: #23262b;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  max-width: 340px;
+}
+.carexpert-banner-ok { background: #1a7f4b; }
+.carexpert-banner-error { background: #a32020; }
+.carexpert-banner-busy { background: #23262b; }

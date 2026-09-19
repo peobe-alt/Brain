@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "CarExpert",
+  "version": "0.1.0",
+  "description": "Marque les bonnes affaires sur les annonces auto que vous consultez.",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "https://www.leboncoin.fr/*",
+    "https://www.lacentrale.fr/*",
+    "https://www.leparking.fr/*",
+    "https://www.autoscout24.fr/*",
+    "https://www.ouestfrance-auto.com/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.leboncoin.fr/*",
+        "https://www.lacentrale.fr/*",
+        "https://www.leparking.fr/*",
+        "https://www.autoscout24.fr/*",
+        "https://www.ouestfrance-auto.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["badges.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": { "default_popup": "popup.html", "default_title": "CarExpert" }
+}
