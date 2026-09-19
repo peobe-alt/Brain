@@ -55,22 +55,21 @@ function badgeFor(verdict) {
   head.textContent = `${style.text} · ${verdict.score}`;
   badge.appendChild(head);
 
-  if (verdict.fair_price_eur) {
-    const detail = document.createElement("span");
-    detail.className = "carexpert-detail";
+  const detail = document.createElement("span");
+  detail.className = "carexpert-detail";
+  if (verdict.verdict === "unknown" || !verdict.fair_price_eur) {
+    // Un ecart s'affiche seulement quand on le tient. Une pastille grise
+    // suivie de "12,4 % sous le marche" se lit comme une bonne affaire: le
+    // chiffre l'emporte sur le mot, et il vient d'un echantillon qu'on
+    // vient justement de juger trop maigre (invariants 7 et 13).
+    detail.textContent = "pas assez de comparables pour situer ce prix";
+  } else {
     const sense = verdict.delta_percent >= 0 ? "sous" : "au-dessus du";
     detail.textContent =
       `${Math.abs(verdict.delta_percent)} % ${sense} marche · ` +
       `cote ${verdict.fair_price_eur.toLocaleString("fr-FR")} EUR`;
-    badge.appendChild(detail);
-  } else {
-    const detail = document.createElement("span");
-    detail.className = "carexpert-detail";
-    // Dire pourquoi il n'y a pas de verdict vaut mieux qu'une pastille muette:
-    // sans comparables, le projet refuse d'inventer une cote (invariant 7).
-    detail.textContent = "pas assez de comparables pour situer ce prix";
-    badge.appendChild(detail);
   }
+  badge.appendChild(detail);
   return badge;
 }
 

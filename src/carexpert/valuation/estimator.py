@@ -214,4 +214,11 @@ def _confidence(
         c_extrap -= 0.2
 
     raw = 0.45 * c_count + 0.30 * c_spread + 0.25 * max(0.0, c_extrap)
+    # L'accord entre deux comparables ne prouve rien: deux points s'alignent
+    # toujours. Or l'accord et l'extrapolation pesent 55 % de la somme, assez
+    # pour qu'un echantillon de deux annonces franchisse le seuil de verdict.
+    # Mesure sur une page de six Twingo: "A SAISIR, 12,4 % sous le marche",
+    # sur deux comparables, a 0,02 du seuil. La confiance ne depasse donc
+    # jamais ce que la taille de l'echantillon autorise a elle seule.
+    raw = min(raw, c_count)
     return round(max(0.0, min(1.0, raw * tier_confidence(tier))), 3)

@@ -188,6 +188,20 @@ Chacun vient d'un defaut reel, mesure :
    appelle CarExpert, jamais le script de contenu : celui-ci s'execute dans
    la page, donc sous la politique de securite du site, qui interdit
    d'appeler une adresse inconnue.
+34. **L'accord entre deux comparables ne prouve rien.** Deux points
+   s'alignent toujours. L'accord et l'extrapolation pesaient 55 % de la
+   confiance contre 45 % a la taille de l'echantillon : assez pour qu'un
+   seul comparable atteigne 0,44, au-dessus du seuil de verdict. Mesure sur
+   une page de six Twingo consultee dans le navigateur : "A SAISIR, 12,4 %
+   sous le marche", rendu sur deux annonces de la meme page. La confiance ne
+   depasse donc jamais ce que la taille de l'echantillon autorise seule, ce
+   qui place le premier verdict a huit comparables et ne touche pas un
+   marche fourni.
+35. **Un chiffre ne s'affiche que quand on le tient.** Une pastille grise
+   "A ESTIMER" suivie de "12,4 % sous le marche" se lit comme une bonne
+   affaire : le chiffre l'emporte sur le mot, et il vient de l'echantillon
+   qu'on vient justement de juger trop maigre. Le refus de juger doit se
+   dire, pas se contredire a la ligne suivante.
 
 ## Collecte
 

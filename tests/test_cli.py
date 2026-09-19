@@ -56,7 +56,15 @@ def test_sources_are_listed_with_their_countries(cli):
 
 
 def test_demo_runs_end_to_end_and_ranks_deals(cli):
-    result = _run(cli, "demo", "--size", "80")
+    """200 annonces, pas 80: en dessous, le marche est trop maigre pour juger.
+
+    Mesure: a 80 annonces la mediane est de 4 comparables par vehicule, et
+    l'estimateur repond "A ESTIMER" 96 fois sur 100 - ce qui est la bonne
+    reponse. Le test passait avant parce que la confiance se laissait porter
+    par l'accord entre deux comparables, et l'accord entre deux points ne
+    prouve rien.
+    """
+    result = _run(cli, "demo", "--size", "200")
     assert result.exit_code == 0
     assert "annonces vues" in result.output
     assert "A SAISIR" in result.output or "A VOIR" in result.output

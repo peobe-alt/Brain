@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import statistics
 
+from carexpert.config import get_settings
 from carexpert.db import Listing, select
 from carexpert.valuation import estimate
 
@@ -237,3 +238,54 @@ def test_valuation_does_not_load_what_it_never_reads(session):
     assert len(comps) >= 8
     assert all(c.make == "Volkswagen" and c.price_eur for c in comps)
     assert all(c.listing_id and c.fingerprint for c in comps)
+
+
+def test_two_comparables_never_carry_a_verdict(session):
+    """Deux annonces qui s'accordent ne font pas un marche.
+
+    Mesure sur une page de six Twingo consultee dans le navigateur: un
+    "A SAISIR, 12,4 % sous le marche" rendu sur deux comparables, a 0,02 du
+    seuil. L'accord et l'extrapolation pesaient 55 % de la confiance, assez
+    pour qu'un echantillon minuscule passe. Et a un seul comparable, la
+    confiance montait encore a 0,44.
+    """
+    from carexpert.schemas import Fuel, Gearbox, SellerType
+    from carexpert.valuation.comps import Facts
+    from carexpert.valuation.estimator import _confidence
+
+    def twingo() -> Facts:
+        return Facts(
+            make="Renault", model="Twingo", year=2015, age_years=9.0, km=100000,
+            fuel=Fuel.PETROL, gearbox=Gearbox.MANUAL, body="citadine", options=[],
+            price_eur=5000.0, country="FR", seller_type=SellerType.PRIVATE,
+        )
+
+    def best_case(count: int) -> float:
+        """Le cas le plus favorable: accord parfait, aucune extrapolation."""
+        return _confidence(count, 0.0, 5000.0, "modele", twingo(),
+                           [twingo() for _ in range(count)])
+
+    settings = get_settings()
+    for thin in (1, 2, 3, 5):
+        assert best_case(thin) < settings.min_confidence_for_verdict, thin
+    # Et le seuil reste franchissable des que l'echantillon existe vraiment.
+    assert best_case(8) >= settings.min_confidence_for_verdict
+    assert best_case(12) > best_case(8) > best_case(5)
+
+
+def test_a_supplied_market_still_reaches_the_documented_confidence(demo_market):
+    """Le plafond ne doit mordre que sur les echantillons maigres.
+
+    Invariant 13: sur un marche fourni la confiance mesuree va de 0,48 a
+    0,70. Si la correction rabotait aussi ce cas, elle rendrait l'outil muet
+    partout.
+    """
+    from carexpert.db import Listing, select
+    from carexpert.valuation import estimate
+
+    rows = demo_market.execute(select(Listing).limit(120)).scalars().all()
+    values = [estimate(demo_market, row) for row in rows]
+    rich = [v for v in values if v.comps_count >= 12]
+
+    assert rich, "le marche de demonstration doit fournir des vehicules bien dotes"
+    assert max(v.confidence for v in rich) >= 0.48
