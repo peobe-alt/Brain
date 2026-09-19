@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from sqlalchemy import and_, or_, select
@@ -38,6 +39,7 @@ from ..expert.schema import ExpertReport
 from ..schemas import SearchQuery
 from ..scoring import DealScore, score_deal
 from ..sources import get_source
+from ..sources.captured import read_captures
 from ..valuation import estimate
 from ..valuation.estimator import Valuation
 from .ingest import IngestStats, complete, from_row, ingest
@@ -149,6 +151,45 @@ def scan(
     finally:
         for adapter in adapters.values():
             adapter.close()
+    return report
+
+
+def import_captures(
+    session: Session,
+    paths: list[Path],
+    *,
+    source: str | None = None,
+    deep: int = 0,
+    notify: bool = False,
+    on_progress: Progress | None = None,
+) -> ScanReport:
+    """Value and score adverts read from pages the user captured themselves.
+
+    The same pass as `scan`, minus the collection: nothing is fetched, so
+    there is no adapter to reopen the best adverts with. That is why the
+    detail pass finds nothing to do here - a capture already *is* the page,
+    and a results-page capture simply carries no description. Capturing an
+    advert page and importing it fills that in.
+    """
+    say = on_progress or _silent
+    report = ScanReport()
+
+    say("Lecture des pages capturees", 10)
+    listings, problems = read_captures(paths, source=source)
+    report.errors.extend(problems)
+    if not listings:
+        return report
+
+    say(f"{len(listings)} annonces lues, enregistrement", 30)
+    by_source: dict[str, list] = {}
+    for listing in listings:
+        by_source.setdefault(listing.source, []).append(listing)
+    for name, rows in by_source.items():
+        report.collected[name] = ingest(session, rows)
+    session.flush()
+
+    _run_passes(session, report, adapters={}, query=SearchQuery(limit=len(listings)),
+                deep=deep, notify=notify, revalue_all=False, say=say)
     return report
 
 

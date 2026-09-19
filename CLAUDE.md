@@ -11,6 +11,7 @@ pip install -e ".[dev,photos]"
 pytest -q                                  # suite complete
 carexpert demo                             # demonstration hors ligne
 carexpert diagnose -s autoscout24 --url .. # valider une source
+carexpert import page.html                 # lire une page ouverte par vous
 carexpert serve                            # tableau de bord
 ```
 
@@ -170,6 +171,14 @@ Chacun vient d'un defaut reel, mesure :
    propres familles d'URL : les compter et en donner un exemple chacune a
    resolu en un regard ce que trois tours de devinette n'avaient pas trouve.
    Un outil qui constate doit montrer ce qu'il a vu.
+32. **Un site qui refuse la collecte ne refuse pas d'etre lu.** leboncoin
+   repond 403 a une requete et un captcha a un navigateur sans tete : c'est
+   non. Mais la personne qui cherche une Twingo regarde deja la page, que le
+   site lui a servie volontairement. `sources/captured.py` lit ce qu'elle a
+   ouvert, et n'a aucun code reseau : il ne peut pas acquerir une page tout
+   seul, et c'est ce qui laisse cette voie ouverte quand les autres sont
+   fermees. Payer un service pour imiter une empreinte TLS et faire tourner
+   des adresses residentielles reste du contournement, sous-traite.
 
 ## Collecte
 

@@ -142,6 +142,50 @@ jeton du projet pour que le site puisse identifier et joindre qui le lit.
 `CAREXPERT_USER_AGENT` permet de le changer, et ce qu'on y met engage celui
 qui l'y met.
 
+### Quand un site refuse : lire ce que vous regardez deja
+
+Mesure sur leboncoin, deux fois : HTTP 403 avec interstitiel DataDome sur une
+requete simple, captcha sur un vrai Chromium sans tete. La Centrale repond
+pareil. C'est un non, et il ne se discute pas.
+
+Le debat anti-bot passe pourtant a cote d'une distinction. Un collecteur
+demande au site des pages que personne n'a demandees. Une personne qui
+cherche une Twingo **regarde deja la page** : le site la lui a servie,
+volontairement, comme a un visiteur. La lire n'est pas de la collecte, rien
+n'est contourne, et le site n'a rien eu a decider puisque c'est un humain qui
+a navigue.
+
+```bash
+# Vous cherchez sur le site, normalement. Puis Fichier > Enregistrer sous.
+carexpert import ~/Downloads/leboncoin-twingo.html
+carexpert import ~/Downloads/annonces/          # un dossier entier
+```
+
+`sources/captured.py` lit ces pages avec les memes paliers qu'un scan, et
+n'a aucun code reseau : sans page ouverte par vous, il n'y a rien a lire.
+C'est exactement ce qui laisse cette voie ouverte quand les autres sont
+fermees. La source se deduit du lien canonique que la page a garde.
+
+Ce que cela ne donne pas : la veille automatique. Une page capturee est un
+instantane. Pour le suivi quotidien, les alertes natives du site previennent,
+et `carexpert analyse-url` ou `carexpert import` expertise ce qu'elles
+remontent.
+
+### Ce qui existe ailleurs, et pourquoi ce n'est pas ici
+
+Des services vendent l'acces aux annonces leboncoin (Scrapfly, acteurs
+Apify, et les bibliotheques qui vont avec). Techniquement, ils fonctionnent
+en imitant l'empreinte TLS de Chrome (JA3/JA4), en faisant tourner des
+adresses residentielles francaises et en traitant les captchas. C'est le
+contournement, sous-traite : le fait de le payer ne change pas sa nature.
+Leurs propres auteurs notent qu'on y passe plus de temps a maintenir le
+contournement qu'a exploiter les donnees.
+
+Il n'existe pas d'API publique leboncoin, et ce n'est pas un oubli : leur
+modele repose sur les annonces premium et les abonnements professionnels.
+Les API partenaires existantes servent a **publier** des annonces
+(Ubiflow, AllYouCanPost), pas a lire le marche.
+
 ### Les voies qui restent, dans l'ordre
 
 1. **Flux officiel ou partenariat.** La seule voie propre a l'echelle. La

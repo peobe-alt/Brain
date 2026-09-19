@@ -317,6 +317,55 @@ def _print_list(title: str, items: list[str], color: str) -> None:
     console.print()
 
 
+@app.command("import")
+def import_pages(
+    paths: list[Path] = typer.Argument(
+        ..., help="Pages HTML sauvegardees depuis le navigateur, ou un dossier."
+    ),
+    source: Optional[str] = typer.Option(
+        None, "--source", "-s",
+        help="Source, si la page ne porte pas son adresse. Sinon elle est deduite.",
+    ),
+    deep: int = typer.Option(0, "--deep", help="Annonces expertisees par Claude."),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Lire des pages que vous avez ouvertes vous-meme dans votre navigateur.
+
+    Pour les sites qui refusent la collecte automatisee. Vous cherchez sur le
+    site, normalement; vous enregistrez la page (Cmd+S); CarExpert la lit.
+    Rien n'est telecharge ici: sans page ouverte, il n'y a rien a lire.
+    """
+    _setup_logging(verbose)
+    init_db()
+    from .pipeline import import_captures
+
+    missing = [path for path in paths if not path.exists()]
+    if missing:
+        for path in missing:
+            console.print(f"[red]Introuvable:[/red] {escape(str(path))}")
+        raise typer.Exit(2)
+
+    with console.status("Lecture des pages..."):
+        with session_scope() as session:
+            report = import_captures(session, paths, source=source, deep=deep)
+
+    for error in report.errors:
+        console.print(f"[yellow]ignore[/yellow] {escape(error)}")
+    if not report.collected:
+        console.print(
+            "\n[red]Aucune annonce lue.[/red] La page enregistree doit etre la page "
+            "de resultats ou la page d'annonce, pas une capture d'ecran.\n"
+            "[dim]Dans le navigateur: Fichier > Enregistrer sous, format "
+            "\"Page web, complete\" ou \"HTML seulement\".[/dim]"
+        )
+        raise typer.Exit(1)
+
+    console.print(f"\n[bold]{report.summary()}[/bold]")
+    if report.top:
+        _print_deals_table(report.top)
+    console.print("\n[dim]Detail d'une annonce : carexpert show <id>[/dim]")
+
+
 @app.command("analyse-url")
 def analyse_url(
     url: str = typer.Argument(..., help="URL d'une annonce."),
