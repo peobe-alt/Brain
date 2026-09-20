@@ -240,6 +240,19 @@ Chacun vient d'un defaut reel, mesure :
    `docs/03-scoring.md`, et echoue des que la mesure s'en ecarte de deux
    points. Les recopier dans le test n'aurait rien attrape : c'est la page
    qui doit avoir tort, pas la mesure.
+41. **Ce qu'une annonce ne dit pas ne joue pas en sa faveur.** `age_factor`
+   et `km_factor` rendaient 1,0 sur une valeur absente, c'est-a-dire le
+   coefficient d'une voiture neuve a zero kilometre. Chaque comparable etait
+   donc remis "a l'etat neuf" pour rejoindre une cible dont on ne savait
+   rien. Mesure sur un vrai scan AutoScout24 de 399 Twingo : une Twingo a
+   1 800 EUR estimee **31 465 EUR**, premiere du classement, "A SAISIR",
+   94 % sous un marche qui n'existe pas, avec 0,57 de confiance. Et la
+   selection aggravait : sans annee ni kilometrage, ni la tolerance d'annee
+   ni celle de kilometrage ne s'appliquent, donc tout le modele de 2009 a
+   2023 rentrait au palier `strict`. L'ajustement ne porte plus que sur les
+   dimensions connues **des deux cotes**, et sans age ni kilometrage la
+   reponse est A ESTIMER. Les 289 tests passaient : aucun n'empruntait ce
+   chemin, exactement comme l'invariant 15.
 
 ## Collecte
 

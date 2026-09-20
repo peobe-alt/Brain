@@ -289,3 +289,111 @@ def test_a_supplied_market_still_reaches_the_documented_confidence(demo_market):
 
     assert rich, "le marche de demonstration doit fournir des vehicules bien dotes"
     assert max(v.confidence for v in rich) >= 0.48
+
+
+# --- ce qu'une annonce ne dit pas -----------------------------------------
+#
+# Mesure sur un vrai scan AutoScout24 de 399 Twingo: les vingt premieres du
+# classement etaient toutes "A SAISIR", et la cote toujours 20 a 50 % au-dessus
+# du prix demande. Cause: une page qui ne donne ni annee ni kilometrage
+# produisait une voiture traitee comme neuve et a zero kilometre, donc tous ses
+# comparables remis "a l'etat neuf" pour la rejoindre. Une Twingo a 1 800 EUR
+# estimee 31 465 EUR, premiere du classement, avec 0,57 de confiance.
+#
+# Les 289 tests passaient. Aucun n'empruntait ce chemin.
+
+
+def _marche_twingo():
+    """Un marche plausible, de la Twingo II de 2009 a la Twingo III de 2023."""
+    from carexpert.normalize import enrich
+    from carexpert.schemas import ListingData
+
+    lots = [(2200, 2009, 180_000), (2500, 2010, 165_000), (2900, 2011, 150_000),
+            (3400, 2012, 140_000), (4200, 2014, 120_000), (5500, 2016, 95_000),
+            (7200, 2018, 70_000), (8900, 2020, 55_000), (10500, 2021, 40_000),
+            (12400, 2023, 20_000)]
+    return [
+        enrich(ListingData(
+            source="autoscout24", source_id=str(i), url=f"https://autoscout24.fr/o/{i}",
+            title=f"Renault Twingo {annee} essence", price=prix, km=km, year=annee,
+            make="Renault", model="Twingo"))
+        for i, (prix, annee, km) in enumerate(lots, start=1)
+    ]
+
+
+def _twingo_cible(session, **champs):
+    from carexpert.normalize import enrich
+    from carexpert.pipeline.ingest import ingest
+    from carexpert.schemas import ListingData
+
+    ingest(session, _marche_twingo())
+    session.flush()
+    return estimate(session, enrich(ListingData(
+        source="autoscout24", source_id="999", url="https://autoscout24.fr/o/999",
+        title="Renault Twingo 1.2", price=1800, make="Renault", model="Twingo",
+        **champs)))
+
+
+def test_a_car_with_neither_year_nor_mileage_is_not_valued(session):
+    """Sans age ni kilometrage, il n'y a rien pour situer une occasion.
+
+    Et le defaut ne s'arrete pas a l'estimation: sans annee et sans
+    kilometrage, la selection n'applique ni tolerance d'annee ni tolerance de
+    kilometrage. Elle ramene donc tout le modele, de 2009 a 2023, et appelle
+    ca le palier strict.
+    """
+    valuation = _twingo_cible(session, km=None, year=None)
+
+    assert valuation.comps_count == 0
+    assert valuation.confidence == 0.0
+    assert valuation.method == "aucune_reference"
+    assert "ni annee ni kilometrage" in valuation.details["raison"]
+
+
+def test_an_unknown_mileage_is_not_a_mileage_of_zero(session):
+    """Ce qu'on ignore ne doit pas jouer en faveur de la voiture.
+
+    La meme Twingo de 2010, avec et sans son kilometrage, doit valoir a peu
+    pres la meme chose. Avant correction, l'absence de kilometrage valait a
+    elle seule un facteur trois.
+    """
+    connue = _twingo_cible(session, km=170_000, year=2010)
+    muette = _twingo_cible(session, km=None, year=2010)
+
+    assert connue.comps_count and muette.comps_count
+    ecart = abs(muette.fair_price_eur - connue.fair_price_eur) / connue.fair_price_eur
+    assert ecart < 0.15, (
+        f"cote {connue.fair_price_eur:.0f} EUR avec le kilometrage, "
+        f"{muette.fair_price_eur:.0f} EUR sans"
+    )
+
+
+def test_a_thin_page_does_not_produce_the_best_deal_of_the_scan(session):
+    """Le symptome tel qu'il s'est presente: la moins renseignee en tete.
+
+    Une annonce dont la page ne donne presque rien ne doit pas ressortir
+    devant une annonce complete au meme prix. C'est l'inverse qui est vrai:
+    on en sait moins, donc on en dit moins.
+    """
+    from carexpert.normalize import enrich
+    from carexpert.pipeline.ingest import ingest
+    from carexpert.schemas import ListingData
+    from carexpert.scoring import score_deal
+
+    ingest(session, _marche_twingo())
+    session.flush()
+
+    def note(**champs):
+        annonce = enrich(ListingData(
+            source="autoscout24", source_id=str(champs.pop("sid")),
+            url="https://autoscout24.fr/o/x", title="Renault Twingo 1.2",
+            price=1800, make="Renault", model="Twingo", **champs))
+        return score_deal(annonce, estimate(session, annonce), None)
+
+    muette = note(sid=901, km=None, year=None)
+    complete = note(sid=902, km=170_000, year=2010)
+
+    assert muette.verdict == "unknown", "une page muette ne se prononce pas"
+    assert muette.score <= complete.score, (
+        f"la page muette note {muette.score}, la page complete {complete.score}"
+    )

@@ -8,9 +8,18 @@ from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
 
 from ..config import get_settings
-from ..schemas import ListingData
+from ..schemas import Gearbox, ListingData, SellerType
 from ..db import Listing
-from .adjust import fit_depreciation, vehicle_factor
+from .adjust import (
+    age_factor,
+    country_factor,
+    fit_depreciation,
+    gearbox_factor,
+    km_factor,
+    options_factor,
+    seller_factor,
+    vehicle_factor,
+)
 from .comps import Facts, find_comparables, to_facts
 
 
@@ -62,6 +71,35 @@ def _factor(facts: Facts) -> float:
     )
 
 
+def _ratio(target: Facts, comp: Facts) -> float:
+    """How much more, or less, the target is worth than this comparable.
+
+    Only the dimensions known on **both** sides take part. An unknown
+    mileage is not a mileage of zero, and an unknown year is not a car that
+    left the factory today - yet that is exactly what a neutral 1.0 claims
+    when it stands in for a missing value on the target side.
+
+    Measure, on a real AutoScout24 scan of 399 Twingo: a 1 800 EUR car whose
+    page gave neither year nor mileage was valued at 31 465 EUR, because
+    every comparable was restated "as new" to meet it. It came out top of
+    the ranking, "A SAISIR", 94 % below a market that does not exist.
+    """
+    ratio = 1.0
+    if target.age_years is not None and comp.age_years is not None:
+        ratio *= (age_factor(target.age_years, target.make, target.fuel)
+                  / age_factor(comp.age_years, comp.make, comp.fuel))
+    if target.km is not None and comp.km is not None:
+        ratio *= km_factor(target.km, target.fuel) / km_factor(comp.km, comp.fuel)
+    if target.gearbox is not Gearbox.UNKNOWN and comp.gearbox is not Gearbox.UNKNOWN:
+        ratio *= gearbox_factor(target.gearbox) / gearbox_factor(comp.gearbox)
+    if (target.seller_type is not SellerType.UNKNOWN
+            and comp.seller_type is not SellerType.UNKNOWN):
+        ratio *= seller_factor(target.seller_type) / seller_factor(comp.seller_type)
+    ratio *= options_factor(target.options) / options_factor(comp.options)
+    ratio *= country_factor(target.country) / country_factor(comp.country)
+    return ratio
+
+
 def robust_center(values: list[float]) -> float:
     """Median of the middle 80%: immune to a single absurd advert."""
     if not values:
@@ -89,6 +127,19 @@ def estimate(
     facts = target if isinstance(target, Facts) else to_facts(target)
     asking = facts.price_eur or 0.0
 
+    # L'age et le kilometrage sont ce qui fait le prix d'une occasion. Sans
+    # aucun des deux, il n'y a rien a quoi rattacher cette voiture: la
+    # selection ne peut appliquer ni tolerance d'annee ni tolerance de
+    # kilometrage, donc elle ramene tout le modele, de la plus vieille a la
+    # plus recente, et l'appelle "strict". Le refus de juger est la seule
+    # reponse vraie (invariants 7 et 13).
+    if facts.age_years is None and facts.km is None:
+        return Valuation(
+            fair_price_eur=asking, low_eur=asking, high_eur=asking, confidence=0.0,
+            comps_count=0, method="aucune_reference", delta_eur=0.0, delta_pct=0.0,
+            details={"raison": "ni annee ni kilometrage: rien pour situer ce prix"},
+        )
+
     comps, tier = find_comparables(session, facts, min_count=min_comps)
     unique_vehicles = len({c.fingerprint for c in comps if c.fingerprint})
     if not comps:
@@ -101,10 +152,12 @@ def estimate(
     target_factor = _factor(facts)
     adjusted: list[float] = []
     for comp in comps:
-        comp_factor = _factor(comp)
-        if comp_factor <= 0 or not comp.price_eur:
+        if not comp.price_eur:
             continue
-        adjusted.append(comp.price_eur * (target_factor / comp_factor))
+        ratio = _ratio(facts, comp)
+        if ratio <= 0:
+            continue
+        adjusted.append(comp.price_eur * ratio)
     if not adjusted:
         return Valuation(
             fair_price_eur=asking, low_eur=asking, high_eur=asking, confidence=0.0,

@@ -306,7 +306,7 @@ parallele, et les protections anti-bot ne se contournent pas.
 
 ```bash
 pip install -e ".[dev,photos]"
-pytest -q                   # 289 tests, tous hors ligne
+pytest -q                   # 292 tests, tous hors ligne
 carexpert init              # creer la base (les autres commandes le font seules)
 carexpert sources           # sources disponibles et leur etat
 carexpert diagnose -s autoscout24 --make Volkswagen --model Golf

@@ -25,6 +25,15 @@ age, kilometrage, boite, options, type de vendeur, pays. Les courbes sont
 multiplicatives et explicites dans `valuation/adjust.py` ; elles peuvent etre
 reajustees sur vos propres donnees via `fit_depreciation`.
 
+Seules les dimensions connues **des deux cotes** participent a cet
+ajustement. Ce qu'une annonce ne dit pas ne joue pas en sa faveur : une
+valeur absente valait auparavant le coefficient d'une voiture neuve a zero
+kilometre, ce qui remettait chaque comparable "a l'etat neuf" pour rejoindre
+une cible dont on ne savait rien. Mesure sur un scan reel de 399 Twingo :
+une Twingo a 1 800 EUR estimee 31 465 EUR, premiere du classement. Et sans
+age **ni** kilometrage, il n'y a plus rien pour situer la voiture : la
+reponse est A ESTIMER, pas une cote.
+
 Avant tout calcul, les comparables sont dedupliques : une meme voiture
 publiee sur trois sites ne compte qu'une fois, au prix le plus bas, celui
 auquel on peut reellement l'acheter. Sans cela l'estimation derive vers le
