@@ -1,0 +1,268 @@
+/* CarExpert, dessine par-dessus la page d'un autre.
+ *
+ * Deux regles tiennent tout le fichier: chaque classe commence par
+ * `carexpert-`, et chaque propriete qui compte est ecrite explicitement.
+ * Une feuille de style hostile - et toutes le sont, elles ne nous
+ * connaissent pas - remet sinon nos polices, nos couleurs et nos marges
+ * a ce qui l'arrange. */
+
+.carexpert-root {
+  box-sizing: border-box !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+  color: #e8eaf0 !important;
+}
+
+.carexpert-badge {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin: 0 0 8px 0 !important;
+  padding: 7px 11px !important;
+  background: #14161c !important;
+  border: 1px solid #252936 !important;
+  border-left-width: 4px !important;
+  border-radius: 10px !important;
+  text-decoration: none !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35) !important;
+}
+
+.carexpert-score {
+  flex: 0 0 auto !important;
+  min-width: 34px !important;
+  padding: 2px 6px !important;
+  border-radius: 8px !important;
+  background: #1a1d26 !important;
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+.carexpert-text {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+}
+
+.carexpert-verdict {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+}
+
+.carexpert-market {
+  color: #8b91a3 !important;
+  font-size: 12px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.carexpert-gain {
+  flex: 0 0 auto !important;
+  color: #3ddc97 !important;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+.carexpert-grab { border-left-color: #3ddc97 !important; }
+.carexpert-check { border-left-color: #f5b942 !important; }
+.carexpert-avoid { border-left-color: #ff5c5c !important; }
+.carexpert-unknown { border-left-color: #8b91a3 !important; }
+
+.carexpert-grab .carexpert-verdict { color: #3ddc97 !important; }
+.carexpert-check .carexpert-verdict { color: #f5b942 !important; }
+.carexpert-avoid .carexpert-verdict { color: #ff5c5c !important; }
+.carexpert-unknown .carexpert-verdict { color: #8b91a3 !important; }
+
+/* --- La fiche, sur une page d'annonce ---------------------------------- */
+
+.carexpert-panel {
+  position: fixed !important;
+  right: 18px !important;
+  bottom: 18px !important;
+  z-index: 2147483000 !important;
+  width: 330px !important;
+  max-height: 78vh !important;
+  overflow-y: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: #14161c !important;
+  border: 1px solid #252936 !important;
+  border-top-width: 3px !important;
+  border-radius: 14px !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5) !important;
+}
+
+.carexpert-head {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 12px 14px !important;
+  border-bottom: 1px solid #252936 !important;
+}
+
+.carexpert-fold {
+  flex: 0 0 auto !important;
+  width: 26px !important;
+  height: 26px !important;
+  padding: 0 !important;
+  background: #1a1d26 !important;
+  color: #e8eaf0 !important;
+  border: 1px solid #252936 !important;
+  border-radius: 8px !important;
+  font-size: 15px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+}
+
+.carexpert-body {
+  padding: 12px 14px 14px 14px !important;
+}
+
+.carexpert-gain-line {
+  margin: 0 0 8px 0 !important;
+  color: #3ddc97 !important;
+  font-weight: 700 !important;
+}
+
+.carexpert-headline {
+  margin: 0 0 10px 0 !important;
+  color: #e8eaf0 !important;
+}
+
+.carexpert-factor {
+  display: flex !important;
+  gap: 8px !important;
+  align-items: baseline !important;
+  padding: 3px 0 !important;
+}
+
+.carexpert-points {
+  flex: 0 0 42px !important;
+  text-align: right !important;
+  font-variant-numeric: tabular-nums !important;
+  font-weight: 700 !important;
+}
+
+.carexpert-up { color: #3ddc97 !important; }
+.carexpert-down { color: #ff5c5c !important; }
+
+.carexpert-label {
+  color: #8b91a3 !important;
+}
+
+.carexpert-h4 {
+  margin: 14px 0 6px 0 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: #8b91a3 !important;
+}
+
+.carexpert-list {
+  margin: 0 !important;
+  padding-left: 18px !important;
+  list-style: disc !important;
+}
+
+.carexpert-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  margin-top: 14px !important;
+}
+
+.carexpert-button {
+  display: inline-block !important;
+  padding: 8px 12px !important;
+  background: #1a1d26 !important;
+  color: #e8eaf0 !important;
+  border: 1px solid #252936 !important;
+  border-radius: 9px !important;
+  font-size: 13px !important;
+  font-family: inherit !important;
+  text-decoration: none !important;
+  cursor: pointer !important;
+}
+
+.carexpert-primary {
+  border-color: #6c8cff !important;
+  color: #ffffff !important;
+}
+
+.carexpert-note {
+  color: #8b91a3 !important;
+  align-self: center !important;
+}
+
+.carexpert-alert {
+  flex: 0 0 auto !important;
+  color: #f5b942 !important;
+  font-size: 12px !important;
+}
+
+.carexpert-basis {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 3px !important;
+  margin: 0 0 10px 0 !important;
+  padding: 9px 11px !important;
+  background: #1a1d26 !important;
+  border-radius: 10px !important;
+  color: #8b91a3 !important;
+  font-size: 12px !important;
+}
+
+.carexpert-basis-title {
+  color: #e8eaf0 !important;
+  font-size: 13px !important;
+}
+
+/* --- Le bandeau d'etat -------------------------------------------------- */
+
+.carexpert-hud {
+  position: fixed !important;
+  left: 18px !important;
+  bottom: 18px !important;
+  z-index: 2147483000 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  max-width: 420px !important;
+  padding: 8px 12px !important;
+  margin: 0 !important;
+  background: #14161c !important;
+  border: 1px solid #252936 !important;
+  border-radius: 999px !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45) !important;
+}
+
+.carexpert-dot {
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  background: #3ddc97 !important;
+  flex: 0 0 auto !important;
+}
+
+.carexpert-hud-text {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+@media (max-width: 720px) {
+  .carexpert-panel {
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+  }
+  .carexpert-hud { display: none !important; }
+}

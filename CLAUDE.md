@@ -126,6 +126,36 @@ Chacun vient d'un defaut reel, mesure :
    renseigne apres la fin pour l'historique ; le lire comme "en cours"
    laissait la banniere affichee et tous les boutons grises pour de bon,
    c'est-a-dire un outil qui ne sert qu'une fois.
+25. **Un echantillon trop maigre pour son palier ne vaut pas une estimation
+   fragile : il n'en vaut aucune.** Chaque palier de comparables porte son
+   propre seuil (3 en `strict`, 12 en `modele_large`) et, en dessous,
+   `comps_count` vaut zero : pas de prix de marche, pas d'ecart, pas de
+   gain, verdict `unknown`. Mesure : une Golf 7 1.6 TDI de 255 000 km a
+   5 900 EUR annoncee "A SAISIR, 45% sous le marche, +4 749 EUR" sur trois
+   comparables - une e-Golf electrique, un break TDI, une GTE hybride.
+26. **Les familles d'energie ne se melangent a aucun palier.** Melanger une
+   essence et un diesel au palier large est une approximation ; y melanger
+   une electrique ou une hybride rechargeable n'en est pas une. Mesure :
+   e-Golf de 163 000 km a 8 490 EUR, "8% au-dessus du marche, A FUIR", sur
+   un echantillon de Golf 1.6 TDI.
+27. **Ce que l'interface affiche doit tenir sans l'etiquette.** Un bandeau
+   qui dit "A ESTIMER" puis "45% sous le marche, estime a 14 248 EUR" est lu
+   comme un prix de marche : c'est le chiffre qu'on retient. Sans estimation,
+   on affiche ce qui manque, en nombres, et le score lui-meme disparait -
+   un score sans position prix n'est pas une note d'affaire.
+28. **Une page capturee dans le navigateur ne se rejoue jamais vers le
+   site.** C'est toute la raison d'etre de l'extension : la requete a deja
+   eu lieu. Une requete de plus se verrait dans les journaux du site et
+   retomberait sur les protections que le projet ne contourne pas.
+29. **Un serveur local est joignable par n'importe quelle page du
+   navigateur.** Un site peut poster vers 127.0.0.1 depuis son propre
+   JavaScript et la requete part, meme si la reponse lui reste illisible.
+   Les origines sont donc filtrees sur le domaine complet - jamais sur
+   "contient", sinon `autoscout24.pirate.example` passe pour AutoScout24.
+30. **Un motif de correspondance invalide fait refuser l'extension
+   entiere.** `*://*.autoscout24.*/*` n'existe pas : le joker ne vaut que
+   pour l'hote entier ou en tete de domaine. Les domaines s'enumerent, et un
+   test verifie que chaque site connu de CarExpert est bien suivi.
 
 ## Collecte
 
@@ -135,7 +165,13 @@ pas. Voir `docs/02-sources-et-legal.md` avant de toucher a une source.
 
 L'extraction repose sur le balisage `schema.org/Car` publie par les sites,
 pas sur des selecteurs CSS. Une nouvelle source s'ajoute par un fichier YAML
-dans `src/carexpert/sources/sites/`, sans code Python.
+dans `src/carexpert/sources/sites/`, sans code Python - plus, si le site doit
+etre suivi par l'extension, ses domaines dans le manifest.
+
+L'autre voie de collecte ne demande rien au site : l'extension lit la page
+que l'utilisateur a deja ouverte (`sources/capture.py`), ce qui donne acces
+aux sites rendus en JavaScript sans une requete de plus. Voir
+`docs/05-extension.md`.
 
 ## Structure
 
@@ -148,6 +184,7 @@ src/carexpert/
   scoring/     score explique
   alerts/      veilles et notifications
   api/ web/    tableau de bord et API JSON
+  extension/   extension navigateur (MV3), servie par le tableau de bord
 ```
 
 ## Tests

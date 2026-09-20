@@ -32,7 +32,7 @@ from ..alerts import (
 )
 from ..config import get_settings
 from ..db import Analysis, Listing, Valuation as ValuationRow, Watchlist
-from ..expert import ExpertAnalyst, analyze_offline
+from ..expert import AnalysisResult, ExpertAnalyst, analyze_offline
 from ..expert.cost import Cost, zero
 from ..expert.schema import ExpertReport
 from ..schemas import SearchQuery
@@ -173,14 +173,10 @@ def _run_passes(
         rows = session.execute(select(Listing).where(Listing.id.in_(chunk))).scalars().all()
         dropped = _price_drops(session, chunk)
         for row in rows:
-            listing = from_row(row)
-            valuation = estimate(session, row)
-            result = analyze_offline(listing, valuation.as_dict())
-            score = score_deal(listing, valuation, result.report,
-                               price_dropped=row.id in dropped)
-            _persist(session, row, valuation, result.report, score, model=result.model,
-                     photos_analyzed=0)
-            scored.append((row, valuation, result.report, score))
+            valuation, expert, score = value_and_score(
+                session, row, price_dropped=row.id in dropped
+            )
+            scored.append((row, valuation, expert, score))
             report.valued += 1
         session.flush()
 
@@ -203,18 +199,11 @@ def _run_passes(
         say(f"Expertise approfondie des {deep} meilleures annonces", 85)
         analyst = ExpertAnalyst()
         for row, valuation, _, _ in scored[:deep]:
-            listing = from_row(row)
-            # `analyze` never raises: a failure comes back degraded so one bad
-            # call cannot cost the rest of the batch.
-            result = analyst.analyze(listing, valuation=valuation.as_dict())
-            if result.degraded:
+            result, score = deep_analyze(session, row, valuation=valuation, analyst=analyst)
+            if score is None:
                 report.degraded.append(f"{row.title[:40]}: {result.degraded_reason}")
                 continue
             report.cost = report.cost + result.cost()
-            score = score_deal(listing, valuation, result.report,
-                               price_dropped=_dropped(session, row))
-            _persist(session, row, valuation, result.report, score, model=result.model,
-                     photos_analyzed=result.photos_analyzed)
             report.deep_analyzed += 1
             for index, item in enumerate(scored):
                 if item[0].id == row.id:
@@ -393,6 +382,51 @@ def _dropped(session: Session, row: Listing) -> bool:
     passes de detail et d'expertise revoient les annonces une a une.
     """
     return row.id in _price_drops(session, [row.id])
+
+
+def value_and_score(
+    session: Session,
+    row: Listing,
+    *,
+    price_dropped: bool = False,
+) -> tuple[Valuation, ExpertReport, DealScore]:
+    """Estimate, read the text, score, and store all three. No network.
+
+    The wide pass of a scan and a page captured in the browser must end up
+    with exactly the same numbers; the only way to be sure of that is for
+    them to run the same code.
+    """
+    listing = from_row(row)
+    valuation = estimate(session, row)
+    result = analyze_offline(listing, valuation.as_dict())
+    score = score_deal(listing, valuation, result.report, price_dropped=price_dropped)
+    _persist(session, row, valuation, result.report, score, model=result.model,
+             photos_analyzed=0)
+    return valuation, result.report, score
+
+
+def deep_analyze(
+    session: Session,
+    row: Listing,
+    *,
+    valuation: Valuation | None = None,
+    analyst: ExpertAnalyst | None = None,
+) -> tuple[AnalysisResult, DealScore | None]:
+    """Send one advert to Claude, store the reading, rescore it.
+
+    Never raises: the analysis comes back degraded instead, and the score is
+    None to say the stored reading did not change. One refused advert must
+    cost neither the batch it belongs to nor the page that asked for it.
+    """
+    listing = from_row(row)
+    valuation = valuation or estimate(session, row)
+    result = (analyst or ExpertAnalyst()).analyze(listing, valuation=valuation.as_dict())
+    if result.degraded:
+        return result, None
+    score = score_deal(listing, valuation, result.report, price_dropped=_dropped(session, row))
+    _persist(session, row, valuation, result.report, score, model=result.model,
+             photos_analyzed=result.photos_analyzed)
+    return result, score
 
 
 def _persist(

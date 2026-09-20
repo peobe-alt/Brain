@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% set nav = "extension" %}
+{% block title %}Extension navigateur - CarExpert{% endblock %}
+
+{% block content %}
+<div class="block">
+  <h2 class="extitle">L'expertise sur les annonces, pendant que vous les lisez</h2>
+
+  <p class="extwhy">
+    L'extension lit la page que vous avez deja ouverte, la fait analyser ici, et
+    affiche la note, l'ecart au marche et le gain estime au-dessus de chaque
+    annonce. Elle n'interroge jamais le site de son cote : rien de plus n'est
+    demande a AutoScout24 ou a leboncoin que ce que votre navigateur a deja
+    charge. C'est aussi ce qui la rend capable de lire les sites qui affichent
+    leurs annonces en JavaScript, la ou un collecteur ne voit qu'une page vide.
+  </p>
+
+  <p class="extwhy">
+    Au debut, elle repondra souvent <em>prix non situe</em> : tant que la base
+    ne contient pas assez d'annonces comparables, il n'y a pas d'estimation, et
+    afficher un pourcentage quand meme reviendrait a inventer un prix de
+    marche. Chaque page de resultats lue remplit la base, et les estimations
+    s'ouvrent au fur et a mesure.
+  </p>
+
+  <div class="extlive">
+    <span class="dot {{ 'termine' if activity.pages else 'en-cours' }}" id="ext-dot"></span>
+    <b id="ext-state">
+      {% if activity.pages %}
+        {{ activity.pages }} pages recues, {{ activity.listings }} annonces analysees
+      {% else %}
+        Aucune page recue pour l'instant
+      {% endif %}
+    </b>
+    <span class="help small" id="ext-last">{{ activity.last_url[:90] }}</span>
+  </div>
+
+  <ol class="extsteps">
+    <li class="extstep">
+      <b>Recuperez le dossier de l'extension.</b>
+      <div class="actions">
+        <a class="button primary" href="/extension/carexpert-extension.zip">Telecharger (.zip)</a>
+      </div>
+      <p class="help small">
+        Il est deja sur votre disque, si vous preferez le charger directement :
+      </p>
+      <code class="extpath">{{ folder }}</code>
+    </li>
+
+    <li class="extstep">
+      <b>Chrome, Edge, Brave, Opera :</b> ouvrez <code class="extpath">chrome://extensions</code>,
+      activez le <em>Mode developpeur</em> en haut a droite, puis
+      <em>Charger l'extension non empaquetee</em> et choisissez ce dossier.
+      <p class="help small">
+        Firefox 121 et plus : <code class="extpath">about:debugging#/runtime/this-firefox</code>,
+        puis <em>Charger un module complementaire temporaire</em> et choisissez
+        le fichier manifest.json.
+      </p>
+    </li>
+
+    <li class="extstep">
+      <b>Laissez CarExpert ouvert</b> et allez faire vos recherches sur le site du
+      vendeur, avec ses filtres a lui. Les bandeaux apparaissent tout seuls.
+    </li>
+
+    <li class="extstep">
+      <b>Sur une annonce</b>, une fiche s'ouvre en bas a droite : ce qui fait la
+      note, les alertes lues dans le texte, et le bouton d'expertise approfondie
+      {% if not deep_ready %}
+        (inactif tant qu'aucune cle API Claude n'est configuree).
+      {% else %}
+        qui envoie les photos a Claude, sur clic, pour quelques centimes.
+      {% endif %}
+    </li>
+  </ol>
+
+  <p class="help">
+    Sites suivis : {{ sites | join(', ') }}. Ajouter un site, c'est deposer un
+    fichier YAML dans <code class="extpath">sources/sites/</code> et ajouter son
+    domaine au manifest.
+  </p>
+</div>
+
+<script>
+(function () {
+  function refresh() {
+    fetch('/api/extension/status')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || !data.activity) return;
+        var activity = data.activity;
+        if (!activity.pages) return;
+        document.getElementById('ext-state').textContent =
+          activity.pages + ' pages recues, ' + activity.listings + ' annonces analysees';
+        document.getElementById('ext-last').textContent = (activity.last_url || '').slice(0, 90);
+        document.getElementById('ext-dot').className = 'dot termine';
+      })
+      .catch(function () {});
+  }
+  setInterval(refresh, 3000);
+})();
+</script>
+{% endblock %}

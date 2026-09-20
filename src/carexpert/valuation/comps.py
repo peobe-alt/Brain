@@ -103,6 +103,60 @@ TIERS: list[tuple[str, int, float, bool, bool, bool]] = [
     ("modele_large",    5, 1.00, False, False, False),
 ]
 
+#: Combien d'annonces il faut a chaque palier, en proportion du minimum
+#: demande. Plus le palier est large, plus l'echantillon doit etre gros pour
+#: dire quelque chose: trois Golf du meme millesime, meme energie et meme
+#: boite sont un marche; trois Golf "toutes energies, cinq ans d'ecart,
+#: kilometrage du simple au double" sont trois voitures differentes.
+#:
+#: Mesure qui a impose cette echelle: une Golf 7 1.6 TDI de 255 000 km a
+#: 5 900 EUR, valorisee 10 649 EUR - donc "A SAISIR, 45% sous le marche,
+#: +4 749 EUR" - sur trois comparables du palier le plus large: une e-Golf
+#: electrique, un break TDI et une GTE hybride rechargeable.
+TIER_NEED = {
+    "strict": 0.4,
+    "modele_carburant": 0.5,
+    "modele": 0.75,
+    "modele_europe": 1.0,
+    "modele_large": 1.5,
+}
+
+#: En dessous de trois vehicules distincts, aucun palier ne dit rien: une
+#: mediane sur deux prix est un des deux prix.
+ABSOLUTE_MIN_COMPS = 3
+
+
+def required_comps(tier: str, min_count: int) -> int:
+    """How many comparables this tier needs before it means anything."""
+    ratio = TIER_NEED.get(tier)
+    if ratio is None:
+        return min_count
+    return max(ABSOLUTE_MIN_COMPS, round(min_count * ratio))
+
+
+#: Familles d'energie qui ne se comparent jamais entre elles, a aucun
+#: palier. Un palier large accepte de melanger une essence et un diesel:
+#: meme carrosserie, meme usage, meme courbe de decote a peu pres. Une
+#: electrique n'a rien de tout cela - batterie, autonomie, aides a l'achat,
+#: marche de l'occasion different - et une hybride rechargeable non plus.
+#:
+#: Mesure: une e-Golf de 163 000 km affichee 8 490 EUR valorisee 7 827 EUR,
+#: donc "8% au-dessus du marche, A FUIR", sur un echantillon de Golf 1.6 TDI.
+#: L'hybride non rechargeable reste dans la famille thermique: c'est une
+#: essence avec une petite batterie, son prix vit dans la meme fourchette.
+#: La prise, elle, change tout.
+THERMAL = ("petrol", "diesel", "hybrid", "lpg", "cng", "ethanol", "other")
+FUEL_FAMILIES = {
+    Fuel.ELECTRIC: ("electric",),
+    Fuel.PHEV: ("phev",),
+    Fuel.HYBRID: THERMAL,
+    Fuel.PETROL: THERMAL,
+    Fuel.DIESEL: THERMAL,
+    Fuel.LPG: THERMAL,
+    Fuel.CNG: THERMAL,
+    Fuel.ETHANOL: THERMAL,
+}
+
 
 #: Sources qui ne decrivent aucun marche reel. Le marche synthetique sert a
 #: mesurer la qualite du classement, jamais a fixer un prix: une Golf reelle
@@ -120,7 +174,12 @@ def find_comparables(
     max_age_days: int = 120,
     exclude_ids: Sequence[int] = (),
 ) -> tuple[list[Facts], str]:
-    """Return the tightest comparable set that reaches `min_count`."""
+    """Return the tightest comparable set that carries its own weight.
+
+    `min_count` scales the whole ladder rather than fixing one threshold:
+    each tier needs a share of it (`TIER_NEED`), so widening the selection
+    also raises the bar it has to clear.
+    """
     if not target.make or not target.model:
         return [], "aucun"
 
@@ -155,6 +214,10 @@ def find_comparables(
             conditions.append(Listing.km.between(low, high))
         if match_fuel and target.fuel is not Fuel.UNKNOWN:
             conditions.append(Listing.fuel == target.fuel.value)
+        elif target.fuel in FUEL_FAMILIES:
+            # Meme quand le palier renonce a l'energie exacte, il ne renonce
+            # pas a la famille: une thermique reste comparee a des thermiques.
+            conditions.append(Listing.fuel.in_(FUEL_FAMILIES[target.fuel]))
         if match_gearbox and target.gearbox is not Gearbox.UNKNOWN:
             conditions.append(Listing.gearbox == target.gearbox.value)
         if same_country:
@@ -167,7 +230,11 @@ def find_comparables(
             [_facts_from_row(row, this_year) for row in rows],
             exclude_fingerprint=target.fingerprint,
         )
-        if len(candidates) >= min_count:
+        # S'arreter au premier palier qui se suffit a lui-meme, et non au
+        # premier qui atteint un seuil unique: quatre annonces strictement
+        # comparables valent mieux que douze "meme modele, toutes energies",
+        # et l'ancienne regle jetait les quatre pour garder les douze.
+        if len(candidates) >= required_comps(tier, min_count):
             return candidates, tier
         if len(candidates) > len(best):
             best, best_tier = candidates, tier

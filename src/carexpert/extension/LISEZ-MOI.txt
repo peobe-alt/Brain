@@ -1,0 +1,74 @@
+CarExpert - extension navigateur
+================================
+
+Elle affiche le prix de marche et le verdict de CarExpert directement sur
+les annonces, pendant que vous les lisez sur le site du vendeur.
+
+
+AVANT DE COMMENCER
+
+CarExpert doit tourner sur votre ordinateur : double-cliquez sur
+CarExpert.command (Mac) ou CarExpert.bat (Windows), ou tapez
+"carexpert serve". L'extension parle a ce programme, et a rien d'autre.
+
+
+INSTALLER - CHROME, EDGE, BRAVE, OPERA
+
+  1. Decompressez ce dossier quelque part ou il pourra rester.
+  2. Ouvrez  chrome://extensions  (edge://extensions sur Edge).
+  3. Activez "Mode developpeur", en haut a droite.
+  4. Cliquez "Charger l'extension non empaquetee".
+  5. Choisissez ce dossier, celui qui contient manifest.json.
+
+L'icone CarExpert apparait dans la barre d'outils. Epinglez-la.
+
+
+INSTALLER - FIREFOX (version 121 ou plus recente)
+
+  1. Ouvrez  about:debugging#/runtime/this-firefox
+  2. "Charger un module complementaire temporaire"
+  3. Choisissez le fichier manifest.json de ce dossier.
+
+Firefox oublie une extension temporaire a chaque redemarrage.
+
+
+S'EN SERVIR
+
+Allez sur AutoScout24, mobile.de, leboncoin, La Centrale ou coches.net,
+faites votre recherche avec les filtres du site, et regardez : un bandeau
+apparait en haut de chaque annonce avec sa note, sa position par rapport au
+marche et le gain estime.
+
+Sur une page d'annonce, une fiche s'ouvre en bas a droite : les points qui
+font la note, les alertes trouvees dans le texte, et un bouton "Expertise
+approfondie" qui envoie les photos a Claude (quelques centimes, sur clic).
+
+Tout ce qui est vu est enregistre dans votre base CarExpert : plus vous
+naviguez, plus les estimations deviennent justes.
+
+
+CE QUI SORT DE VOTRE MACHINE
+
+Rien, sauf si vous cliquez "Expertise approfondie" : ce bouton-la envoie
+l'annonce et ses photos a Claude. Le reste - la page lue, les prix, les
+notes - ne quitte pas votre ordinateur : l'extension parle a CarExpert sur
+127.0.0.1, c'est-a-dire chez vous.
+
+L'extension ne demande jamais rien au site de son cote. Elle lit la page
+que vous avez ouverte, celle qui est deja affichee.
+
+
+SI QUELQUE CHOSE NE VA PAS
+
+  "CarExpert ne repond pas"
+      Le programme n'est pas lance, ou pas sur le meme port. Cliquez sur
+      l'icone de l'extension et corrigez l'adresse (par defaut
+      http://127.0.0.1:8000).
+
+  Aucun bandeau sur les annonces
+      Rechargez la page. Si le site vient de changer sa mise en page, les
+      annonces restent analysees et visibles dans le tableau de bord.
+
+  "Cartes non reconnues"
+      Les annonces ont bien ete lues et notees, mais l'extension n'a pas
+      su ou poser les bandeaux. Tout est dans le tableau de bord.

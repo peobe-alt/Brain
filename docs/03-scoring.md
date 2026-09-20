@@ -10,15 +10,38 @@ aller voir cette voiture ce soir ?*
 Pour chaque annonce, on cherche des comparables en base, par paliers de plus
 en plus larges :
 
-| Palier | Criteres | Confiance |
-|---|---|---|
-| `strict` | meme modele, meme energie, meme boite, ±1 an, ±30% km, meme pays | 1.00 |
-| `modele_carburant` | meme modele, meme energie, ±2 ans, ±50% km | 0.90 |
-| `modele` | meme modele, ±3 ans | 0.75 |
-| `modele_europe` | idem, tous pays | 0.60 |
-| `modele_large` | ±5 ans, tous pays | 0.40 |
+| Palier | Criteres | Il en faut | Confiance |
+|---|---|---|---|
+| `strict` | meme modele, meme energie, meme boite, ±1 an, ±30% km, meme pays | 3 | 1.00 |
+| `modele_carburant` | meme modele, meme energie, ±2 ans, ±50% km | 4 | 0.90 |
+| `modele` | meme modele, ±3 ans | 6 | 0.75 |
+| `modele_europe` | idem, tous pays | 8 | 0.60 |
+| `modele_large` | ±5 ans, tous pays | 12 | 0.40 |
 
-On s'arrete au premier palier qui atteint huit comparables.
+On s'arrete au premier palier qui **atteint son propre seuil**. Plus le
+palier est large, plus il faut d'annonces pour qu'il dise quelque chose :
+trois Golf du meme millesime, meme energie et meme boite sont un marche ;
+trois Golf "toutes energies, cinq ans d'ecart, kilometrage du simple au
+double" sont trois voitures differentes.
+
+Si aucun palier n'atteint son seuil, **il n'y a pas d'estimation** : pas de
+prix de marche, pas d'ecart, pas de gain, et le verdict est `unknown`
+(A ESTIMER). La reponse affichee dit alors ce qui manque, en nombres :
+"3 annonces comparables en base, il en faut 12".
+
+Mesure qui a impose cette regle : lue sur une page de resultats base vide,
+une Golf 7 1.6 TDI de 255 000 km affichee 5 900 EUR ressortait "A SAISIR,
+45% sous le marche, +4 749 EUR de gain". Ses trois comparables : une e-Golf
+electrique, un break TDI et une GTE hybride rechargeable. Six voitures qui
+se comparent entre elles ne sont pas un marche.
+
+**Les familles d'energie ne se melangent jamais.** Un palier large accepte de
+comparer une essence et un diesel ; il ne compare jamais une electrique, une
+hybride rechargeable et une thermique. Batterie, autonomie, aides a l'achat,
+marche de l'occasion : rien n'est comparable, et aucun facteur de decote ne
+rattrape l'ecart de niveau de prix. Mesure : une e-Golf de 163 000 km a
+8 490 EUR sortait "8% au-dessus du marche, A FUIR" sur un echantillon de
+Golf 1.6 TDI.
 
 Chaque comparable est ensuite **ramene aux conditions du vehicule cible** :
 age, kilometrage, boite, options, type de vendeur, pays. Les courbes sont

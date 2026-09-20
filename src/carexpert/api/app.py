@@ -18,9 +18,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 
+from ..config import get_settings
 from ..db import Analysis, Listing, Valuation, Watchlist, init_db, session_scope
 from ..schemas import SearchQuery
 from ..sources import available_sources, source_for_url
+from . import extension as extension_api
+from .extension import EXTENSION_DIR, guard_origin
+from .extension import router as extension_router
 from .jobs import runner
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
@@ -37,6 +41,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
+app.middleware("http")(guard_origin)
+app.include_router(extension_router)
 templates = Jinja2Templates(directory=str(WEB_DIR / "templates"))
 
 VERDICT_LABEL = {
@@ -415,3 +421,22 @@ def delete_watchlist(watchlist_id: int):
         if w is not None:
             session.delete(w)
     return RedirectResponse("/veilles", status_code=303)
+
+
+# --- Extension navigateur -------------------------------------------------
+
+
+@app.get("/extension", response_class=HTMLResponse)
+def extension_page(request: Request):
+    """How to install the extension, and whether it is talking to us."""
+    sources = [name for name in available_sources() if name != "demo"]
+    return templates.TemplateResponse(
+        request,
+        "extension.html",
+        {
+            "folder": str(EXTENSION_DIR),
+            "sites": sorted(sources),
+            "activity": extension_api.activity,
+            "deep_ready": bool(get_settings().anthropic_api_key),
+        },
+    )

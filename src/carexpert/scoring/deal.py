@@ -89,9 +89,7 @@ def score_deal(
             )
         )
     else:
-        factors.append(
-            ScoreFactor("Position prix", -5, "pas assez de comparables pour situer le prix")
-        )
+        factors.append(ScoreFactor("Position prix", -5, _missing_basis(valuation)))
         score -= 5
 
     if report is not None:
@@ -231,8 +229,36 @@ def _verdict(score: int, report: ExpertReport | None, valuation: Valuation | Non
     return "avoid"
 
 
+def _missing_basis(valuation: Valuation | None) -> str:
+    """Say what the base lacks, in numbers, rather than that it lacks something.
+
+    "Pas assez de comparables" leaves the reader to guess whether the tool is
+    broken, the car is rare, or one more page of results would settle it.
+    The two counts answer that in three words.
+    """
+    details = (valuation.details if valuation else None) or {}
+    found = details.get("comparables_trouves")
+    needed = details.get("comparables_requis")
+    if found is None or not needed:
+        return "pas assez de comparables pour situer le prix"
+    return (
+        f"base insuffisante: {found} annonce{'s' if found > 1 else ''} comparable"
+        f"{'s' if found > 1 else ''} en base, il en faut {needed}"
+    )
+
+
 def _headline(score: int, net_gain: float, valuation: Valuation | None) -> str:
     if _too_thin(valuation):
+        details = (valuation.details if valuation else None) or {}
+        found, needed = details.get("comparables_trouves"), details.get("comparables_requis")
+        if found is not None and needed:
+            # Dire ce qui manque, en nombres: l'utilisateur saura qu'une page
+            # de resultats de plus peut suffire.
+            return (
+                f"Base insuffisante pour situer ce prix: {found} annonce"
+                f"{'s' if found > 1 else ''} comparable{'s' if found > 1 else ''} "
+                f"en base, il en faut {needed}"
+            )
         if valuation is not None and valuation.comps_count:
             return (
                 f"Seulement {valuation.comps_count} reference"

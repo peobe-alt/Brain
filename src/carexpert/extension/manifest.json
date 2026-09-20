@@ -1,0 +1,75 @@
+{
+  "manifest_version": 3,
+  "name": "CarExpert",
+  "version": "0.1.0",
+  "description": "Le prix de marche et le verdict CarExpert, affiches sur les annonces pendant que vous les lisez.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "*://*.autoscout24.fr/*",
+    "*://*.autoscout24.de/*",
+    "*://*.autoscout24.it/*",
+    "*://*.autoscout24.es/*",
+    "*://*.autoscout24.nl/*",
+    "*://*.autoscout24.be/*",
+    "*://*.autoscout24.at/*",
+    "*://*.autoscout24.lu/*",
+    "*://*.autoscout24.pl/*",
+    "*://*.mobile.de/*",
+    "*://*.mobile.at/*",
+    "*://*.lacentrale.fr/*",
+    "*://*.leboncoin.fr/*",
+    "*://*.coches.net/*",
+    "*://*.coches.es/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "CarExpert"
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.autoscout24.fr/*",
+        "*://*.autoscout24.de/*",
+        "*://*.autoscout24.it/*",
+        "*://*.autoscout24.es/*",
+        "*://*.autoscout24.nl/*",
+        "*://*.autoscout24.be/*",
+        "*://*.autoscout24.at/*",
+        "*://*.autoscout24.lu/*",
+        "*://*.autoscout24.pl/*",
+        "*://*.mobile.de/*",
+        "*://*.mobile.at/*",
+        "*://*.lacentrale.fr/*",
+        "*://*.leboncoin.fr/*",
+        "*://*.coches.net/*",
+        "*://*.coches.es/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "carexpert@local",
+      "strict_min_version": "121.0"
+    }
+  }
+}

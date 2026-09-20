@@ -8,7 +8,6 @@ background job whose progress a page can poll.
 
 from __future__ import annotations
 
-import re
 import time
 
 import pytest
@@ -229,38 +228,6 @@ def test_the_watchlist_page_guides_a_first_time_user(client):
 # --- Feuille de style -----------------------------------------------------
 
 
-def _plain_class_selectors(css: str) -> list[str]:
-    """Les selecteurs d'une seule classe, hors @media.
-
-    Une regle sous @media redefinit volontairement une classe pour un petit
-    ecran: ce n'est pas une collision, c'est le but.
-    """
-    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
-
-    found: list[str] = []
-    depth = 0
-    skip_until = None
-    for header, brace in re.findall(r"([^{}]*)([{}])", css):
-        if brace == "}":
-            depth -= 1
-            if skip_until is not None and depth <= skip_until:
-                skip_until = None
-            continue
-        depth += 1
-        header = header.strip()
-        if header.startswith("@"):
-            if skip_until is None:
-                skip_until = depth - 1
-            continue
-        if skip_until is not None:
-            continue
-        for selector in header.split(","):
-            selector = selector.strip()
-            if re.fullmatch(r"\.[a-z][\w-]*", selector):
-                found.append(selector)
-    return found
-
-
 def test_no_class_is_styled_in_two_places():
     """Une classe redefinie plus bas repeint une page qu'on ne regarde pas.
 
@@ -269,10 +236,9 @@ def test_no_class_is_styled_in_two_places():
     s'empilaient au centre, et la barre de confiance de la fiche d'annonce
     changeait d'epaisseur. Rien dans ces trois pages ne le laissait voir.
     """
+    from conftest import classes_defined_twice
+
     from carexpert.api.app import WEB_DIR
 
-    css = (WEB_DIR / "static" / "app.css").read_text()
-    selectors = _plain_class_selectors(css)
-
-    twice = sorted({name for name in selectors if selectors.count(name) > 1})
+    twice = classes_defined_twice((WEB_DIR / "static" / "app.css").read_text())
     assert not twice, f"classes definies deux fois: {', '.join(twice)}"

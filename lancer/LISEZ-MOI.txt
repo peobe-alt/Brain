@@ -27,6 +27,19 @@ Donnez un nom dans "Enregistrer comme veille" et la recherche devient
 relancable d'un clic depuis l'onglet "Mes veilles".
 
 
+VOIR LES NOTES DIRECTEMENT SUR LE SITE
+
+  1. Dans CarExpert, ouvrez l'onglet "Extension".
+  2. Suivez les trois etapes: telecharger, decompresser, charger dans le
+     navigateur.
+  3. Retournez sur AutoScout24: chaque annonce porte sa note.
+
+L'extension ne demande rien au site, elle lit la page que vous avez ouverte.
+Au debut elle repondra souvent "prix non situe": la base est vide, et elle
+prefere le dire plutot que d'inventer un prix de marche. Chaque page de
+resultats que vous ouvrez la remplit.
+
+
 SI QUELQUE CHOSE NE VA PAS
 
   "Python n'est pas installe"

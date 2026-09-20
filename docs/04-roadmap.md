@@ -13,9 +13,20 @@
 - diagnostic de source en une commande (`carexpert diagnose`)
 - couche experte resistante aux pannes, avec cout mesure par scan
 - deduplication des vehicules crosspostes, estimation incrementale
-- 121 tests, dont la mesure de separation affaires / pieges
+- extension navigateur : lecture de la page ouverte, verdict affiche sur les
+  annonces du site, sans une requete de plus
+- refus d'estimer quand la base ne porte pas l'estimation, avec le detail de
+  ce qui manque
+- 222 tests, dont la mesure de separation affaires / pieges
 
 ## Prochaines etapes, par ordre de valeur
+
+0. **Remplir la base par la navigation.** L'extension collecte desormais
+   sans rien demander aux sites : chaque page de resultats lue ajoute ses
+   vingt annonces. C'est la voie la plus rapide vers une base assez dense
+   pour que les estimations s'ouvrent - et celle qui ne pose aucun probleme
+   de politesse. Reste a mesurer combien de pages il faut, par modele, pour
+   passer les seuils de comparables.
 
 1. **Valider deux sources reelles de bout en bout.** Prendre AutoScout24 et
    mobile.de, lancer `carexpert diagnose` sur une recherche reelle, corriger

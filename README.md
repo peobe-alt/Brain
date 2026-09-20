@@ -128,6 +128,39 @@ carexpert analyse-url "https://www.autoscout24.fr/offres/..."
 
 ---
 
+## Sans rien demander au site : l'extension navigateur
+
+Trois sites sur cinq affichent leurs annonces en JavaScript, et le mieux
+protege est celui ou les particuliers vendent. L'extension contourne le
+probleme par l'autre bout : elle lit **la page que vous avez deja ouverte**.
+Le JavaScript a tourne, la session est la votre, et le site ne recoit pas une
+requete de plus.
+
+Le verdict s'affiche alors sur ses annonces a lui :
+
+```
+  83  A SAISIR    24% sous le marche, estime a 11 729 EUR   +2 779 EUR
+  63  A VERIFIER  9% sous le marche, estime a 6 471 EUR       +571 EUR
+```
+
+Installation sans terminal : onglet **Extension** du tableau de bord, bouton
+*Telecharger*, puis `chrome://extensions` -> Mode developpeur -> *Charger
+l'extension non empaquetee*.
+
+**Tant que la base est vide, elle ne dit rien.** C'est le point important.
+Sur la premiere page lue, les seules annonces connues sont celles de cette
+page : six voitures qui se comparent entre elles ne sont pas un marche, donc
+aucun prix n'est affiche.
+
+```
+  ?   A ESTIMER   prix non situe: 3 annonces comparables en base sur 12
+```
+
+Chaque page lue nourrit la base, et les estimations s'ouvrent au fur et a
+mesure. Le detail est dans [`docs/05-extension.md`](docs/05-extension.md).
+
+---
+
 ## Ce que l'outil regarde vraiment
 
 **Le prix.** Des comparables sont cherches en base par paliers (meme modele,
@@ -136,6 +169,13 @@ chacun est **ramene aux conditions du vehicule analyse** : age, kilometrage,
 boite, options, type de vendeur, pays. Le prix juste est la mediane robuste
 des prix ainsi ajustes, assortie d'une confiance qui pondere son poids dans
 la note.
+
+Chaque palier porte son propre seuil : trois annonces suffisent quand elles
+sont strictement comparables, il en faut douze au palier le plus large. En
+dessous, il n'y a pas d'estimation du tout - ni prix, ni ecart, ni gain -
+et l'outil affiche ce qui lui manque. Et les familles d'energie ne se
+melangent jamais : une electrique ne se compare pas a une thermique, quel
+que soit le nombre d'annonces disponibles.
 
 **Le texte.** Une couche de signaux typés lit ce que le vendeur dit, et ce
 qu'il evite de dire : `vendu en l'etat`, `compteur non garanti`,
@@ -222,6 +262,10 @@ repli sur les regles  Volkswagen Golf 1.6 TDI: limite de debit atteinte apres
 | `leboncoin` | FR | protection forte, usage manuel recommande |
 | `coches_net` | ES | rendu JavaScript |
 
+Les trois sites rendus en JavaScript, et leboncoin, sont lisibles par
+l'extension navigateur : c'est le navigateur qui affiche la page, CarExpert
+se contente de la lire.
+
 Ajouter un site = deposer un fichier YAML dans `src/carexpert/sources/sites/`.
 Aucun code Python.
 
@@ -240,6 +284,8 @@ pas.
 - [Architecture](docs/01-architecture.md) : le flux, les couches, les choix techniques
 - [Sources et cadre legal](docs/02-sources-et-legal.md) : politique de collecte, CGU, RGPD
 - [Le scoring](docs/03-scoring.md) : estimation, ponderation, limites
+- [L'extension navigateur](docs/05-extension.md) : lire la page ouverte,
+  et ne rien affirmer que la base ne porte pas
 - [Suite](docs/04-roadmap.md) : prochaines etapes et modele economique
 
 ---
@@ -248,7 +294,7 @@ pas.
 
 ```bash
 pip install -e ".[dev,photos]"
-pytest                      # 121 tests
+pytest                      # 222 tests
 carexpert sources           # sources disponibles
 carexpert diagnose -s autoscout24 --url "..."   # valider une source
 ```
@@ -264,6 +310,7 @@ src/carexpert/
   scoring/     score explique
   alerts/      veilles et notifications
   api/ web/    tableau de bord et API JSON
+  extension/   extension navigateur (MV3)
 ```
 
 ---

@@ -35,7 +35,10 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-carexpert = ["sources/sites/*.yaml", "expert/knowledge/*", "web/templates/*", "web/static/*"]
+carexpert = [
+    "sources/sites/*.yaml", "expert/knowledge/*", "web/templates/*", "web/static/*",
+    "extension/*", "extension/icons/*",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

@@ -11,7 +11,7 @@ from ..config import get_settings
 from ..schemas import ListingData
 from ..db import Listing
 from .adjust import fit_depreciation, vehicle_factor
-from .comps import Facts, find_comparables, to_facts
+from .comps import Facts, find_comparables, required_comps, to_facts
 
 
 @dataclass(slots=True)
@@ -92,7 +92,30 @@ def estimate(
         return Valuation(
             fair_price_eur=asking, low_eur=asking, high_eur=asking, confidence=0.0,
             comps_count=0, method="aucune_reference", delta_eur=0.0, delta_pct=0.0,
-            details={"raison": "aucun vehicule comparable en base pour ce modele"},
+            details={"raison": "aucun vehicule comparable en base pour ce modele",
+                     "comparables_trouves": 0,
+                     "comparables_requis": required_comps("strict", min_comps)},
+        )
+
+    # Un echantillon trop maigre pour son palier ne produit pas une
+    # estimation fragile: il n'en produit aucune. `comps_count` a zero dit au
+    # reste de la chaine ce qui est vrai - on ne sait pas situer ce prix - et
+    # empeche d'afficher un "prix de marche" que personne n'a mesure.
+    needed = required_comps(tier, min_comps)
+    if len(comps) < needed:
+        return Valuation(
+            fair_price_eur=asking, low_eur=asking, high_eur=asking, confidence=0.0,
+            comps_count=0, method="base_insuffisante", delta_eur=0.0, delta_pct=0.0,
+            details={
+                "raison": (
+                    f"{len(comps)} annonce{'s' if len(comps) > 1 else ''} comparable"
+                    f"{'s' if len(comps) > 1 else ''} en base, il en faut {needed} "
+                    f"a ce niveau de similitude ({tier})"
+                ),
+                "tier": tier,
+                "comparables_trouves": len(comps),
+                "comparables_requis": needed,
+            },
         )
 
     target_factor = _factor(facts)
@@ -144,6 +167,8 @@ def estimate(
         delta_pct=(delta / center) if center else 0.0,
         details={
             "tier": tier,
+            "comparables_trouves": len(comps),
+            "comparables_requis": needed,
             "dispersion_eur": round(dispersion, 2),
             "ajustement_cible": round(target_factor, 4),
             "prix_ajustes_min": round(min(adjusted), 2),

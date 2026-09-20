@@ -62,16 +62,161 @@ def test_no_comparables_means_no_confidence(session):
     assert valuation.delta_pct == 0.0
 
 
+def _car(session, source_id, **kwargs):
+    from carexpert.normalize import enrich
+    from carexpert.pipeline.ingest import ingest
+    from carexpert.schemas import Fuel, Gearbox, ListingData
+
+    defaults = {
+        "title": "Volkswagen Golf 1.6 TDI 110 Confortline", "price": 12_000, "km": 120_000,
+        "year": 2016, "fuel": Fuel.DIESEL, "gearbox": Gearbox.MANUAL, "country": "FR",
+    }
+    defaults.update(kwargs)
+    listing = enrich(ListingData(
+        source="autoscout24", source_id=source_id,
+        url=f"https://www.autoscout24.fr/offres/{source_id}", **defaults,
+    ))
+    ingest(session, [listing])
+    session.flush()
+    return session.execute(
+        select(Listing).where(Listing.source_id == source_id)
+    ).scalar_one()
+
+
+def test_three_cars_of_the_very_same_spec_are_enough_to_price_one(session):
+    """Un modele rare ne doit pas rester muet: trois jumelles suffisent."""
+    for index in range(3):
+        _car(session, f"jumelle{index}", price=12_000 + index * 200, km=118_000 + index * 3000)
+    target = _car(session, "cible", price=9_500)
+
+    valuation = estimate(session, target)
+    assert valuation.details["tier"] == "strict"
+    assert valuation.comps_count == 3
+    assert valuation.fair_price_eur > 11_000
+    assert valuation.delta_pct > 0.15
+
+
+def test_three_cars_of_anything_are_not_a_market(session):
+    """Le defaut mesure: trois Golf de trois energies valorisaient la quatrieme.
+
+    Une e-Golf electrique, une GTE hybride et une essence de 2011 ne disent
+    rien du prix d'une TDI de 2016, quel que soit le soin mis a la mediane.
+    A ce niveau de similitude il faut une douzaine d'annonces, et tant
+    qu'elles n'y sont pas la reponse est qu'on ne sait pas.
+    """
+    from carexpert.schemas import Fuel, Gearbox
+
+    _car(session, "egolf", title="Volkswagen Golf e-golf electric 115",
+         price=8_490, km=163_000, year=2015, fuel=Fuel.ELECTRIC, gearbox=Gearbox.AUTOMATIC)
+    _car(session, "gte", title="Volkswagen Golf 1.4 TSI GTE 204H hybride rechargeable",
+         price=15_990, km=129_000, year=2017, fuel=Fuel.PHEV, gearbox=Gearbox.AUTOMATIC)
+    _car(session, "tfsi", title="Volkswagen Golf 1.8 TFSI 160 Highline",
+         price=6_990, km=112_000, year=2014, fuel=Fuel.PETROL, gearbox=Gearbox.MANUAL)
+    target = _car(session, "cible", title="Volkswagen Golf 7 1.6 TDI 110",
+                  price=5_900, km=255_000, year=2016)
+
+    valuation = estimate(session, target)
+    assert valuation.method == "base_insuffisante"
+    assert valuation.comps_count == 0          # ce qui ne compte pas ne compte pas
+    assert valuation.confidence == 0.0
+    assert valuation.delta_pct == 0.0
+    assert valuation.details["comparables_trouves"] < valuation.details["comparables_requis"]
+
+    # Et le verdict qui en decoule ne condamne ni ne recommande la voiture.
+    from carexpert.pipeline.ingest import from_row
+    from carexpert.scoring import score_deal
+
+    score = score_deal(from_row(target), valuation, None)
+    assert score.verdict == "unknown"
+    assert "base insuffisante" in score.headline.lower()
+
+
+def test_an_electric_car_is_never_priced_on_thermal_ones(session):
+    """Mesure: une e-Golf de 163 000 km a 8 490 EUR sortait "8% au-dessus du
+    marche, A FUIR" sur un echantillon de Golf 1.6 TDI.
+
+    Un palier large accepte de melanger une essence et un diesel; il ne doit
+    jamais melanger une electrique et une thermique. Batterie, autonomie,
+    aides a l'achat, marche de l'occasion: rien n'est comparable, et aucun
+    facteur de decote ne rattrape l'ecart de niveau de prix.
+    """
+    from carexpert.schemas import Fuel, Gearbox
+
+    for index in range(14):
+        _car(session, f"tdi{index}", price=11_000 + index * 200, km=150_000 + index * 3000,
+             year=2015 + index % 3)
+    target = _car(session, "egolf", title="Volkswagen Golf e-golf electric 115",
+                  price=8_490, km=163_000, year=2015,
+                  fuel=Fuel.ELECTRIC, gearbox=Gearbox.AUTOMATIC)
+
+    valuation = estimate(session, target)
+    # Quatorze Golf diesel en base, et pas une seule reference pour celle-ci.
+    assert valuation.method == "aucune_reference"
+    assert valuation.comps_count == 0
+    assert valuation.delta_pct == 0.0
+
+    # Quatre e-Golf en base, et la meme voiture se situe enfin.
+    for index in range(4):
+        _car(session, f"egolf{index}", title="Volkswagen Golf e-golf electric 115",
+             price=8_000 + index * 300, km=150_000 + index * 4000, year=2015,
+             fuel=Fuel.ELECTRIC, gearbox=Gearbox.AUTOMATIC)
+    valuation = estimate(session, target)
+    assert valuation.comps_count == 4
+    assert valuation.details["tier"] == "strict"
+    assert 7_500 < valuation.fair_price_eur < 10_000
+
+
+def test_a_wide_tier_needs_a_wide_sample(session):
+    """Le meme palier large, nourri, redevient exploitable."""
+    from carexpert.schemas import Fuel, Gearbox
+
+    fuels = [Fuel.PETROL, Fuel.DIESEL, Fuel.PHEV, Fuel.ELECTRIC]
+    for index in range(14):
+        _car(
+            session, f"varie{index}",
+            title=f"Volkswagen Golf variante {index}",
+            price=11_000 + index * 150, km=100_000 + index * 9_000,
+            year=2014 + index % 4, fuel=fuels[index % 4],
+            gearbox=Gearbox.AUTOMATIC if index % 2 else Gearbox.MANUAL,
+            country="DE" if index % 3 else "FR",
+        )
+    target = _car(session, "cible", price=9_000, km=150_000, year=2016)
+
+    valuation = estimate(session, target)
+    assert valuation.comps_count >= valuation.details["comparables_requis"]
+    assert valuation.fair_price_eur > 0
+    # Un palier large reste un palier large: la confiance ne monte pas au ciel.
+    assert valuation.confidence < 0.75
+
+
 def test_confidence_rises_with_the_sample(demo_market):
+    """A tier egal, plus d'annonces vaut plus de confiance.
+
+    Comparer a palier egal et non en absolu: depuis que chaque palier porte
+    son propre seuil, quatre annonces strictement comparables passent la
+    barre alors que dix "meme modele, toutes energies" ne la passent pas.
+    Un petit echantillon n'est plus, en soi, un echantillon faible.
+    """
     session = demo_market
     rows = session.execute(select(Listing)).scalars().all()
     valuations = [estimate(session, row) for row in rows[:60]]
-    with_comps = [v for v in valuations if v.comps_count >= 10]
-    thin = [v for v in valuations if 0 < v.comps_count < 5]
-    if with_comps and thin:
-        assert statistics.mean(v.confidence for v in with_comps) > statistics.mean(
-            v.confidence for v in thin
-        )
+
+    by_tier: dict[str, list] = {}
+    for valuation in valuations:
+        if valuation.comps_count:
+            by_tier.setdefault(valuation.details["tier"], []).append(valuation)
+
+    compared = 0
+    for tier, group in by_tier.items():
+        group.sort(key=lambda v: v.comps_count)
+        half = len(group) // 2
+        if half < 3:
+            continue
+        small = statistics.mean(v.confidence for v in group[:half])
+        large = statistics.mean(v.confidence for v in group[-half:])
+        assert large > small, f"palier {tier}: {large:.3f} <= {small:.3f}"
+        compared += 1
+    assert compared, "aucun palier n'avait assez d'annonces pour mesurer quoi que ce soit"
 
 
 def test_refitting_depreciation_recovers_planted_rates():
