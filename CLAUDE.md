@@ -152,7 +152,13 @@ Chacun vient d'un defaut reel, mesure :
    JavaScript et la requete part, meme si la reponse lui reste illisible.
    Les origines sont donc filtrees sur le domaine complet - jamais sur
    "contient", sinon `autoscout24.pirate.example` passe pour AutoScout24.
-30. **Un motif de correspondance invalide fait refuser l'extension
+30. **"A fuir" ne se dit pas d'une voiture ordinaire.** Le verdict le plus
+   fort doit reposer sur quelque chose de retenu contre elle, pas sur
+   l'absence de merite. Mesure : avec le seuil a 55, 61 des 215 annonces
+   correctes du marche synthetique sortaient "A FUIR", dont une Golf de
+   2024 a 4% au-dessus du marche, etat 88/100, coupable d'avoir trois
+   photos. Le plancher est le score neutre, 45.
+31. **Un motif de correspondance invalide fait refuser l'extension
    entiere.** `*://*.autoscout24.*/*` n'existe pas : le joker ne vaut que
    pour l'hote entier ou en tete de domaine. Les domaines s'enumerent, et un
    test verifie que chaque site connu de CarExpert est bien suivi.

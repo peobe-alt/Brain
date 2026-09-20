@@ -52,6 +52,19 @@ class DealScore:
 
 BASE_SCORE = 50.0
 
+#: En dessous de ce score, quelque chose a ete retenu contre la voiture.
+#: Au-dessus, elle est simplement ordinaire - et "a fuir" ne se dit pas
+#: d'une voiture ordinaire.
+#:
+#: Mesure sur le marche synthetique (260 annonces, verite connue): a 55,
+#: 61 des 215 annonces correctes sortaient "A FUIR", dont une Golf de 2024
+#: a 4% au-dessus du marche, etat 88/100, vendeur particulier, dont le seul
+#: tort etait de ne publier que trois photos. Le score, lui, etait juste:
+#: c'est l'etiquette qui affirmait plus que ce que le calcul disait.
+#: 45 est le plancher neutre: 50 de base, moins les 5 points retires quand
+#: le prix ne peut pas etre situe.
+NEUTRAL_FLOOR = 45
+
 
 def _eur(value: float) -> str:
     """French thousands formatting, without eating the sentence's commas."""
@@ -224,7 +237,7 @@ def _verdict(score: int, report: ExpertReport | None, valuation: Valuation | Non
         return "unknown"
     if score >= 75:
         return "grab"
-    if score >= 55:
+    if score >= NEUTRAL_FLOOR:
         return "check"
     return "avoid"
 

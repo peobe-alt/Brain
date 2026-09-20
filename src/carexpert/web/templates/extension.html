@@ -33,6 +33,9 @@
       {% endif %}
     </b>
     <span class="help small" id="ext-last">{{ activity.last_url[:90] }}</span>
+    <span class="help small" id="ext-size">
+      {{ ('derniere page recue: ' ~ activity.as_dict().last_size) if activity.last_bytes }}
+    </span>
   </div>
 
   <ol class="extsteps">
@@ -93,6 +96,8 @@
         document.getElementById('ext-state').textContent =
           activity.pages + ' pages recues, ' + activity.listings + ' annonces analysees';
         document.getElementById('ext-last').textContent = (activity.last_url || '').slice(0, 90);
+        document.getElementById('ext-size').textContent =
+          activity.last_size ? 'derniere page recue: ' + activity.last_size : '';
         document.getElementById('ext-dot').className = 'dot termine';
       })
       .catch(function () {});

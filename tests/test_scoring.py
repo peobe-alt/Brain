@@ -68,6 +68,23 @@ def test_overpriced_car_is_penalised():
     assert score.score < 45
 
 
+def test_an_ordinary_car_is_not_a_car_to_flee():
+    """"A FUIR" doit reposer sur quelque chose, pas sur l'absence de merite.
+
+    Mesure: 61 des 215 annonces correctes du marche synthetique sortaient
+    "A FUIR", dont une Golf de 2024 a 4% au-dessus du marche, etat 88/100,
+    vendeur particulier, dont le seul tort etait de n'avoir que trois photos.
+    """
+    ordinary = _score("Bon etat general, entretien a jour.", 16_800)
+    assert ordinary.verdict == "check", f"score {ordinary.score} etiquete {ordinary.verdict}"
+
+    # Ce qui justifie vraiment de fuir continue de le faire.
+    overpriced = _score("Tres bon etat, factures.", 21_500)
+    assert overpriced.verdict == "avoid"
+    trap = _score("Vendu en l'etat, moteur hs, compteur non garanti.", 10_500)
+    assert trap.verdict == "avoid"
+
+
 def test_every_point_is_explained():
     score = _score("Carnet d'entretien complet.", 14_000)
     assert score.factors

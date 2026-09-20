@@ -87,6 +87,26 @@ Depart a 50 points, puis :
 Chaque point est accompagne de sa justification, affichee dans l'interface et
 dans `carexpert show`.
 
+## Les quatre verdicts
+
+| Verdict | Condition |
+|---|---|
+| **A SAISIR** | score >= 75, sur une estimation qui tient |
+| **A VERIFIER** | score >= 45 |
+| **A FUIR** | score < 45, ou l'expert conclut a l'evitement |
+| **A ESTIMER** | pas d'estimation possible : base insuffisante ou confiance trop basse |
+
+Le plancher de 45 n'est pas arbitraire : le score part de 50, et seuls
+5 points sont retires quand le prix ne peut pas etre situe. En dessous de
+45, quelque chose a donc ete **retenu contre** la voiture. Au-dessus, elle
+est simplement ordinaire, et "a fuir" ne se dit pas d'une voiture ordinaire.
+
+Mesure qui a impose ce seuil : a 55, 61 des 215 annonces correctes du marche
+synthetique ressortaient "A FUIR", dont une Golf de 2024 a 4% au-dessus du
+marche, etat 88/100, vendeur particulier, dont le seul tort etait de ne
+publier que trois photos. A 45 : 17 sur 215, et les 21 pieges restent tous
+"A FUIR".
+
 ## Pourquoi le prix seul ne suffit pas
 
 Mesure sur le marche de demonstration, ou la verite est connue :

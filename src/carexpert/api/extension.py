@@ -70,12 +70,16 @@ class Activity:
     listings: int = 0
     last_at: datetime | None = None
     last_url: str = ""
+    #: Poids de la derniere page recue. C'est la seule chose qui sort du
+    #: navigateur, et l'utilisateur a le droit de savoir combien.
+    last_bytes: int = 0
 
-    def note(self, url: str, count: int) -> None:
+    def note(self, url: str, count: int, page_bytes: int = 0) -> None:
         self.pages += 1
         self.listings += count
         self.last_at = datetime.utcnow()
         self.last_url = url[:300]
+        self.last_bytes = page_bytes
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -83,6 +87,8 @@ class Activity:
             "listings": self.listings,
             "last_url": self.last_url,
             "last_at": self.last_at.isoformat() if self.last_at else None,
+            "last_bytes": self.last_bytes,
+            "last_size": f"{self.last_bytes / 1024:.0f} Ko" if self.last_bytes else "",
         }
 
 
@@ -217,7 +223,8 @@ def status() -> dict[str, Any]:
 @router.post("/api/extension/page")
 def analyse_page(capture: PageCapture) -> dict[str, Any]:
     """Read one captured page, value its adverts, answer with the verdicts."""
-    if len(capture.html.encode("utf-8", "ignore")) > MAX_HTML_BYTES:
+    page_bytes = len(capture.html.encode("utf-8", "ignore"))
+    if page_bytes > MAX_HTML_BYTES:
         raise HTTPException(
             status_code=413,
             detail="Page trop lourde pour etre analysee.",
@@ -226,7 +233,7 @@ def analyse_page(capture: PageCapture) -> dict[str, Any]:
     page = read_page(capture.html, capture.url)
     with session_scope() as session:
         outcome = absorb(session, page)
-    activity.note(capture.url, len(outcome.results))
+    activity.note(capture.url, len(outcome.results), page_bytes)
     return outcome.as_dict()
 
 
