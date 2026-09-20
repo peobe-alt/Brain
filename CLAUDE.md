@@ -12,6 +12,7 @@ pytest -q                                  # suite complete
 carexpert demo                             # demonstration hors ligne
 carexpert diagnose -s autoscout24 --url .. # valider une source
 carexpert import page.html                 # lire une page ouverte par vous
+carexpert calibration                      # la cote est-elle centree ?
 # extension/ : les memes verdicts poses sur les pages que vous consultez
 carexpert serve                            # tableau de bord
 ```
@@ -253,6 +254,17 @@ Chacun vient d'un defaut reel, mesure :
    dimensions connues **des deux cotes**, et sans age ni kilometrage la
    reponse est A ESTIMER. Les 289 tests passaient : aucun n'empruntait ce
    chemin, exactement comme l'invariant 15.
+42. **Un classement flatteur ressemble a un bon lot.** Les vingt premieres
+   d'un scan paraissent convaincantes quel que soit le biais de la cote. Sur
+   les 399 Twingo du premier vrai scan AutoScout24, toutes "A SAISIR" avec
+   une cote 20 a 50 % au-dessus du prix demande, rien dans l'outil ne
+   permettait de trancher entre un bon lot et une estimation qui gonfle. La
+   propriete qui tranche est mesurable : la voiture mediane **est** le
+   marche, donc sur une base d'un meme modele la moitie des annonces doit
+   ressortir au-dessus de sa cote. `carexpert calibration` le mesure, et une
+   annonce sans comparable n'y compte pas comme un ecart nul, sans quoi une
+   base entierement "A ESTIMER" paraitrait parfaitement calibree. Temoin sur
+   le marche de demonstration : 49 % sous le marche, ecart median 0,4 %.
 
 ## Collecte
 

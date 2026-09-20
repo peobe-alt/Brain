@@ -136,6 +136,39 @@ affaires et quatre annonces au prix.
 
 C'est toute la raison d'etre de l'outil.
 
+## Verifier que la cote est centree
+
+Un scan affiche ses vingt meilleures affaires, et ses vingt meilleures ont
+l'air convaincantes quel que soit le biais de l'estimation. Il faut donc
+autre chose pour savoir si la cote tient.
+
+La propriete qui tranche est mesurable : **la voiture mediane est le
+marche**. Sur une base d'un meme modele, la moitie des annonces doit
+ressortir au-dessus de sa cote et l'autre en dessous. Une base ou tout le
+monde est "sous le marche" n'est pas pleine de bonnes affaires : c'est la
+cote qui gonfle, et le classement qu'elle produit ne trie plus que du bruit.
+
+```bash
+carexpert calibration --make Renault --model Twingo
+```
+
+La commande rend l'ecart a la cote par deciles, la part de la base donnee
+sous le marche, la confiance et le nombre de comparables medians, ce qui
+manque aux annonces, et l'ecart median palier par palier. Temoin sur le
+marche de demonstration, dont le prix juste est connu :
+
+```
+Estimation centree: l'annonce mediane est a 0.4 % au-dessus de sa cote,
+et 49 % de la base est donnee sous le marche.
+
+ ecart a la cote        p10 -15 %  p25 -8 %  p50 -0 %  p75 +8 %  p90 +21 %
+ donnees sous le marche 49 % (une base saine: 50 %)
+```
+
+Une annonce sans comparable n'entre pas dans la mesure. La compter comme un
+ecart nul rendrait une base entierement **A ESTIMER** parfaitement calibree,
+et le diagnostic serait d'autant plus rassurant qu'il n'y a rien dedans.
+
 ## Limites assumees
 
 - L'estimation vaut ce que vaut la base : peu d'annonces collectees sur un

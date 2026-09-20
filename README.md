@@ -109,6 +109,27 @@ Comptez deux minutes : vingt requetes de liste pour 400 annonces, puis les
 vingt meilleures rouvertes une a une pour lire leur descriptif, au rythme
 poli du site.
 
+Puis, avant de croire au classement :
+
+```bash
+carexpert calibration --make Renault --model Twingo
+```
+
+Un scan affiche ses vingt meilleures, et ses vingt meilleures ont l'air
+convaincantes quel que soit le biais de l'estimation. La propriete qui
+tranche est mesurable : **la voiture mediane est le marche**, donc la moitie
+de la base doit ressortir au-dessus de sa cote. Une base ou tout le monde est
+"sous le marche" n'est pas pleine d'affaires, c'est la cote qui gonfle.
+
+```
+Estimation centree: l'annonce mediane est a 0.4 % au-dessus de sa cote,
+et 49 % de la base est donnee sous le marche.
+
+ ecart a la cote        p10 -15 %  p25 -8 %  p50 -0 %  p75 +8 %  p90 +21 %
+ donnees sous le marche 49 % (une base saine: 50 %)
+ confiance mediane      0.50
+```
+
 Par URL collee, ce qui reste la voie la plus sure quand les filtres sont
 complexes :
 
@@ -306,8 +327,9 @@ parallele, et les protections anti-bot ne se contournent pas.
 
 ```bash
 pip install -e ".[dev,photos]"
-pytest -q                   # 292 tests, tous hors ligne
+pytest -q                   # 300 tests, tous hors ligne
 carexpert init              # creer la base (les autres commandes le font seules)
+carexpert calibration       # la cote est-elle centree, ou seulement flatteuse ?
 carexpert sources           # sources disponibles et leur etat
 carexpert diagnose -s autoscout24 --make Volkswagen --model Golf
 carexpert import page.html  # lire une page que vous avez ouverte

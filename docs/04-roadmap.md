@@ -22,7 +22,9 @@
 - diagnostic de source en une commande, qui montre ce qu'il a vu plutot que
   de le decrire : familles d'URL de la page, forme de recherche que le site
   declare, motif de lien deduit
-- 292 tests, tous hors ligne, dont la mesure de separation affaires / pieges
+- 300 tests, tous hors ligne, dont la mesure de separation affaires / pieges
+- controle de calibration de la cote (`carexpert calibration`) : la moitie
+  d'une base saine doit ressortir au-dessus de sa cote
 
 ## L'etat des sources, au 20 septembre 2026
 

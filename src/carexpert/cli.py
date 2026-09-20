@@ -235,6 +235,79 @@ def _print_deals_table(rows: list[dict]) -> None:
 
 
 @app.command()
+def calibration(
+    make: Optional[str] = typer.Option(None, "--make"),
+    model: Optional[str] = typer.Option(None, "--model"),
+    source: Optional[str] = typer.Option(None, "--source", "-s"),
+) -> None:
+    """Verifier que la cote est centree, et pas seulement flatteuse.
+
+    La voiture mediane est le marche. Sur une base d'un meme modele, la
+    moitie des annonces doit ressortir au-dessus de sa cote et l'autre en
+    dessous. Une base ou tout le monde est "sous le marche" n'est pas pleine
+    de bonnes affaires: c'est la cote qui gonfle, et le classement qu'elle
+    produit ne trie plus que du bruit.
+    """
+    from .valuation.calibration import calibration as measure
+
+    init_db()
+    with session_scope() as session:
+        report = measure(session, make=make, model=model, source=source)
+
+    if not report.total:
+        console.print("[yellow]Aucune annonce en base.[/yellow] "
+                      "Lancer d'abord : carexpert scan")
+        return
+
+    style = {"juste": "green", "penchee": "yellow",
+             "faussee": "red", "sans_mesure": "dim"}[report.state]
+    console.print(Panel(escape(report.headline), border_style=style))
+
+    table = Table(header_style="bold", show_header=False, box=None)
+    table.add_column("", style="dim", width=24)
+    table.add_column("")
+
+    def ligne(libelle: str, valeur: str) -> None:
+        table.add_row(libelle, valeur)
+
+    ligne("annonces", f"{report.total} dont {report.valued} estimees")
+    manque = []
+    for libelle, present in (("annee", report.with_year), ("kilometrage", report.with_km),
+                             ("descriptif", report.with_description)):
+        if present < report.total:
+            manque.append(f"{report.total - present} sans {libelle}")
+    ligne("ce qui manque", ", ".join(manque) if manque else "rien")
+
+    if report.deltas:
+        ligne("ecart a la cote",
+              "  ".join(f"p{int(part * 100)} {report.percentile(part) * 100:+.0f} %"
+                        for part in (0.1, 0.25, 0.5, 0.75, 0.9)))
+        ligne("donnees sous le marche",
+              f"{report.below_market_share * 100:.0f} % (une base saine: 50 %)")
+        import statistics as _stats
+        ligne("confiance mediane", f"{_stats.median(report.confidences):.2f}")
+        ligne("comparables medians", f"{int(_stats.median(report.comps))}")
+    if report.verdicts:
+        ligne("verdicts", "  ".join(
+            f"{VERDICT_LABEL.get(nom, nom)} {compte}"
+            for nom, compte in sorted(report.verdicts.items(),
+                                      key=lambda item: -item[1])))
+    console.print(table)
+
+    if len(report.by_tier) > 1:
+        paliers = Table(header_style="bold", title="Par palier de comparables")
+        paliers.add_column("palier")
+        paliers.add_column("annonces", justify="right")
+        paliers.add_column("ecart median", justify="right")
+        import statistics as _stats
+        for tier, valeurs in sorted(report.by_tier.items(),
+                                    key=lambda item: -len(item[1])):
+            paliers.add_row(tier, str(len(valeurs)),
+                            f"{_stats.median(valeurs) * 100:+.1f} %")
+        console.print(paliers)
+
+
+@app.command()
 def show(listing_id: int = typer.Argument(..., help="Identifiant affiche par `deals`.")) -> None:
     """Afficher l'expertise complete d'une annonce."""
     init_db()
