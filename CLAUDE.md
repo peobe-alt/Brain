@@ -230,6 +230,16 @@ Chacun vient d'un defaut reel, mesure :
    autorisant le groupe general. Un robot nomme lit son groupe et ignore le
    general, meme plus permissif. CarExpert n'est aucun d'eux, mais
    l'intention du site se lit et se respecte avant d'augmenter le rythme.
+40. **Un chiffre publie sans test qui le tienne finit par mentir.** Le
+   tableau du README est l'argument du produit : trois categories mesurees
+   sur le marche de demonstration. Les changements de valorisation les ont
+   fait deriver sans bruit, jusqu'a inverser un signe : les annonces au prix
+   y etaient donnees a -2 % et 51, la mesure dit +2 % et 56 ; les pieges a
+   -37 % et 30, la mesure dit -39 % et 31. Le test lit desormais les
+   chiffres **dans les pages qui les publient**, README et
+   `docs/03-scoring.md`, et echoue des que la mesure s'en ecarte de deux
+   points. Les recopier dans le test n'aurait rien attrape : c'est la page
+   qui doit avoir tort, pas la mesure.
 
 ## Collecte
 

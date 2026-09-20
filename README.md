@@ -21,12 +21,13 @@ Mesure sur un marche de test dont la verite est connue :
 | | Ecart au prix de marche | Score CarExpert |
 |---|---|---|
 | Vraies affaires | -21 % | **84 / 100** |
-| Annonces au prix | -2 % | 51 / 100 |
-| **Pieges** (moteur fatigue, compteur douteux, vendu en l'etat) | **-37 %** | **30 / 100** |
+| Annonces au prix | +2 % | 56 / 100 |
+| **Pieges** (moteur fatigue, compteur douteux, vendu en l'etat) | **-39 %** | **31 / 100** |
 
 Les pieges sont les annonces **les moins cheres du marche**. Un tri par prix
 les met en premiere page. Apres lecture du texte et de l'etat, ils tombent a
-30 et sortent du top 25, qui ne contient plus que de vraies affaires.
+31 et sortent du classement : le top 20 ne contient pas un seul piege, mais
+seize vraies affaires et quatre annonces au prix.
 
 C'est exactement ce que le produit doit faire, et c'est verifie par un test.
 
@@ -43,19 +44,20 @@ carexpert demo
 ```
 
 ```
-250 annonces vues, 250 nouvelles, 0 ignorees
-0 collectees, 250 estimees, 0 expertisees en profondeur
+300 annonces vues, 300 nouvelles, 0 mises a jour, 0 baisses de prix, 0 ignorees
+0 annonces collectees (0 nouvelles), 300 estimees, 0 expertisees en profondeur, 0 alertes
 
-  id  score  avis       vehicule                                prix    marche   ecart
-  27     92  A SAISIR   Volkswagen Golf Confortline 2021       9 140   12 901  +3 761
-  51     90  A SAISIR   Renault Captur Zen hybride 2020        7 600    9 137  +1 537
-  49     89  A SAISIR   Mercedes Classe C Break diesel 2021   13 250   17 704  +4 454
+  id  score  avis       vehicule                                  prix   marche   ecart
+ 106     93  A SAISIR   Renault Clio Intens diesel 2022          9 060   11 412  +2 352
+  27     92  A SAISIR   Volkswagen Golf Confortline 2021         9 140   12 898  +3 758
+ 131     91  A SAISIR   Dacia Sandero Stepway GPL 2017           2 350    2 870    +520
 ```
 
 Puis le detail d'une annonce, avec le raisonnement complet :
 
 ```bash
 carexpert show 27
+carexpert deals        # le classement, sans rien recollecter
 carexpert serve        # tableau de bord sur http://127.0.0.1:8000
 ```
 
@@ -304,7 +306,8 @@ parallele, et les protections anti-bot ne se contournent pas.
 
 ```bash
 pip install -e ".[dev,photos]"
-pytest -q                   # 288 tests, tous hors ligne
+pytest -q                   # 289 tests, tous hors ligne
+carexpert init              # creer la base (les autres commandes le font seules)
 carexpert sources           # sources disponibles et leur etat
 carexpert diagnose -s autoscout24 --make Volkswagen --model Golf
 carexpert import page.html  # lire une page que vous avez ouverte

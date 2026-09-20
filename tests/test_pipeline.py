@@ -113,6 +113,82 @@ def test_scan_ranks_real_bargains_above_traps(demo_market):
     assert kinds.count("bargain") >= 8
 
 
+def test_the_published_figures_are_the_measured_ones(demo_market):
+    """Le tableau du README est une mesure: il doit rester vrai.
+
+    Ces trois lignes sont l'argument du produit, et elles ont derive en
+    silence - la ligne "au prix" avait change de signe et cinq points de
+    score, les pieges deux points - parce qu'aucun test ne les tenait. Une
+    these affichee sans test qui la verifie n'est plus une mesure, c'est un
+    souvenir.
+
+    Le test lit donc les chiffres **dans les pages qui les publient** plutot
+    que de les recopier: un ecart fait echouer ici, et la correction est
+    d'aller mettre le tableau a jour. Des bornes fixes, elles, se
+    choisissent assez larges pour ne jamais gener, c'est-a-dire assez larges
+    pour ne rien attraper.
+    """
+    import re
+    import statistics
+    from pathlib import Path as _Path
+
+    racine = _Path(__file__).resolve().parent.parent
+    publications = {
+        nom: (racine / nom).read_text(encoding="utf-8")
+        for nom in ("README.md", "docs/03-scoring.md")
+    }
+
+    def publie(page: str, libelle: str) -> tuple[float, float]:
+        ligne = next(l for l in publications[page].splitlines()
+                     if l.startswith("|") and libelle in l)
+        ecart = re.search(r"([+-]?\d+(?:[.,]\d+)?)\s*%", ligne)
+        score = re.search(r"(\d+(?:[.,]\d+)?)\s*/\s*100", ligne)
+        assert ecart and score, f"chiffres illisibles dans le README: {ligne}"
+        return float(ecart.group(1).replace(",", ".")), float(score.group(1).replace(",", "."))
+
+    session = demo_market
+    pays = ["FR", "DE", "IT", "BE", "ES", "NL"]
+    report = scan(session, sources=[], query=SearchQuery(limit=260, countries=pays))
+
+    rows = {row.id: row for row in session.execute(select(Listing)).scalars().all()}
+    familles: dict[str, list[Listing]] = {}
+    for row in rows.values():
+        kind = (row.raw or {}).get("demo_kind")
+        if kind and row.score is not None:
+            familles.setdefault(kind, []).append(row)
+
+    def mesure(kind: str) -> tuple[float, float]:
+        lot = familles[kind]
+        ecarts = [
+            (row.price_eur - row.raw["demo_fair_price"]) / row.raw["demo_fair_price"]
+            for row in lot
+            if row.price_eur and row.raw.get("demo_fair_price")
+        ]
+        return statistics.median(ecarts) * 100, statistics.median(r.score for r in lot)
+
+    for libelle, kind in (("Vraies affaires", "bargain"),
+                          ("Annonces au prix", "fair"),
+                          ("Pieges", "trap")):
+        ecart_mesure, score_mesure = mesure(kind)
+        for page in publications:
+            ecart_publie, score_publie = publie(page, libelle)
+            assert abs(ecart_mesure - ecart_publie) <= 2, (
+                f"{page}, {libelle}: annonce {ecart_publie:+.0f} %, "
+                f"la mesure donne {ecart_mesure:+.1f} %"
+            )
+            assert abs(score_mesure - score_publie) <= 2, (
+                f"{page}, {libelle}: annonce {score_publie:.0f}/100, "
+                f"la mesure donne {score_mesure:.1f}/100"
+            )
+
+    # Et la phrase qui suit le tableau: les pieges sont les moins chers du
+    # marche, et pourtant aucun ne figure au classement.
+    assert mesure("trap")[0] < mesure("bargain")[0], "les pieges restent les moins chers"
+    familles_du_top = [(rows[item["id"]].raw or {}).get("demo_kind") for item in report.top]
+    assert familles_du_top.count("trap") == 0
+    assert familles_du_top.count("bargain") >= 12
+
+
 def test_the_whole_base_is_scored_not_a_capped_slice(session):
     """A cap would leave most of a real market silently unscored."""
     from carexpert.sources.demo import DemoSource

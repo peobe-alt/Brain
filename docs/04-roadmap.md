@@ -22,7 +22,7 @@
 - diagnostic de source en une commande, qui montre ce qu'il a vu plutot que
   de le decrire : familles d'URL de la page, forme de recherche que le site
   declare, motif de lien deduit
-- 288 tests, tous hors ligne, dont la mesure de separation affaires / pieges
+- 289 tests, tous hors ligne, dont la mesure de separation affaires / pieges
 
 ## L'etat des sources, au 20 septembre 2026
 
