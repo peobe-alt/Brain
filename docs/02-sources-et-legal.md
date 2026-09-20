@@ -12,23 +12,66 @@ Toutes les requetes passent par `sources/fetcher.py`, qui applique :
 Ces reglages sont volontairement lents. Ils se modifient par source dans le
 YAML, mais les augmenter engage votre responsabilite.
 
-## Ce qui est dans le depot, et ce qui reste a valider
+## L'etat mesure des sources
 
-Les fichiers `sources/sites/*.yaml` portent tous `verified: false`. Les
-gabarits d'URL de recherche y sont ecrits d'apres la structure publique
-connue de chaque site, **mais n'ont pas ete testes en conditions reelles**.
-Ils sont un point de depart, pas une garantie.
+Mesure du 20 septembre 2026, sur les sites reels, depuis une machine
+ordinaire. Ce tableau se refait avec `carexpert diagnose`, et il se perime :
+un drapeau de validation dit ce qui marchait le jour ou on l'a pose.
 
-En revanche, l'extraction d'une page d'annonce ne depend pas de ces
-gabarits : elle lit le balisage `schema.org/Car` que les sites publient
-eux-memes pour le referencement. C'est la partie robuste.
+| Source | Verdict | Mesure |
+|---|---|---|
+| `autoscout24` | **ouverte** | 804 Ko, 20 annonces completes par page, lues en `schema.org` |
+| `leparking` | **ouverte** | 476 Ko, 26 annonces reconnues, prix et kilometrage a finir |
+| `leboncoin` | fermee | HTTP 403, interstitiel DataDome ; captcha au navigateur reel |
+| `lacentrale` | fermee | meme protection |
+| `mobile_de`, `coches_net` | non testees | gabarits ecrits d'apres la structure publique |
 
-**La methode fiable au quotidien :** construire la recherche dans
-l'interface du site, avec ses filtres, copier l'URL, puis
+Deux choses valent d'etre retenues de ces mesures.
 
-```bash
-carexpert scan --source autoscout24 --url "<URL collee>" --deep 5
-```
+**AutoScout24 se lit sans ouvrir une seule annonce.** Sa page de resultats
+publie ses vingt annonces completes en JSON-LD : une requete pour vingt
+voitures, prix, kilometrage, annee et energie compris. C'est vingt fois
+moins de sollicitation que la voie par liens, et c'est la source la plus
+fournie du dispositif (150 000 annonces en France, 2,7 millions en Europe).
+
+**leboncoin et La Centrale disent non, et ce non tient.** Mesure faite deux
+fois sur chacune : une requete simple recoit un 403 avec interstitiel
+DataDome, et un vrai Chromium sans tete recoit un captcha. Ce n'est pas un
+probleme technique a resoudre, c'est un refus. La voie qui reste sur ces
+deux sites est celle des pages que vous ouvrez vous-meme, plus bas.
+
+## Lire le robots.txt comme la norme le dit
+
+`sources/robots.py` existe parce que `urllib.robotparser` se trompe dans
+les deux sens, et parce que le respect du `robots.txt` est la premiere
+regle de ce projet.
+
+AutoScout24 ecrit `Disallow: /lst?` pour viser l'ancienne recherche a
+parametres. La bibliotheque standard fait passer chaque motif par
+`urlunparse(urlparse(path))`, ce qui supprime une query vide : la regle
+devient `/lst`, prefixe qui interdit alors `/lst/volkswagen/golf`, page que
+le site autorise. Cette seule ligne a fait declarer la plus grosse source
+du projet interdite pendant une journee.
+
+Le meme lecteur ne bloque pas assez dans l'autre sens : `Disallow: */util/*`
+est compare par `startswith`, or aucune URL ne commence par `*`.
+
+Le lecteur du projet applique RFC 9309 : jokers `*` et `$`, motif compare
+au chemin **et** a la query sans les alterer, regle la plus longue
+gagnante, `Allow` l'emportant a egalite, `Disallow:` vide qui autorise tout
+sans etre une regle de longueur zero.
+
+### Ce qu'un robots.txt dit des robots d'IA
+
+AutoScout24 nomme `GPTBot`, `ClaudeBot`, `CCBot` et `Google-Extended` pour
+leur interdire tout le site, tout en autorisant le groupe general. Un robot
+nomme lit son groupe et ignore le general, meme plus permissif : le lecteur
+le fait, et un test le verrouille.
+
+CarExpert n'est aucun de ces robots et releve du groupe general, qui
+l'autorise. L'intention du site merite cependant d'etre connue avant
+d'augmenter le rythme ou le volume, et a plus forte raison avant d'en tirer
+un produit commercial.
 
 ## Valider une source en une commande
 
