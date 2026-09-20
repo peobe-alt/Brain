@@ -168,7 +168,12 @@ Chacun vient d'un defaut reel, mesure :
    la page reste vide tant qu'il est la. Une seule reprise, trois secondes
    plus tard, evite d'avoir a cliquer soi-meme; au-dela ce serait une
    boucle.
-33. **Un motif de correspondance invalide fait refuser l'extension
+33. **Une page de resultats n'est jamais une annonce.** Quand le site
+   declare la forme de ses URL d'annonce et que l'adresse n'y ressemble
+   pas, on ne tente pas la lecture "fiche": sinon l'encart sponsorise d'une
+   page de recherche entre en base sous l'adresse de la recherche, et
+   devient un comparable fantome que plus rien ne met a jour.
+34. **Un motif de correspondance invalide fait refuser l'extension
    entiere.** `*://*.autoscout24.*/*` n'existe pas : le joker ne vaut que
    pour l'hote entier ou en tete de domaine. Les domaines s'enumerent, et un
    test verifie que chaque site connu de CarExpert est bien suivi.

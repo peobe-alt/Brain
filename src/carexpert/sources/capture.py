@@ -67,7 +67,17 @@ def read_page(html: str, url: str, *, source: str | None = None) -> CapturedPage
     # vehicules similaires. La lire comme une page de resultats ferait perdre
     # l'annonce regardee au profit de six voisines. L'adresse tranche: les
     # sites decrivent la forme de leurs URL d'annonce dans leur YAML.
-    readers = (_as_listing, _as_search) if _is_advert_url(url, config) else (_as_search, _as_listing)
+    if _is_advert_url(url, config):
+        readers = (_as_listing, _as_search)
+    elif config.get("listing_link_pattern"):
+        # Le site dit a quoi ressemblent ses URL d'annonce, et celle-ci n'y
+        # ressemble pas: c'est une page de resultats, une page de marque, un
+        # panier. La lire comme une annonce, c'est enregistrer l'encart
+        # sponsorise d'une page de recherche sous l'adresse de la recherche.
+        readers = (_as_search,)
+    else:
+        readers = (_as_search, _as_listing)
+
     for reader in readers:
         if reader(page, html, config):
             return page

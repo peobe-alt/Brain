@@ -129,6 +129,25 @@ def test_an_advert_page_is_not_read_as_its_own_list_of_similar_cars():
     assert len(listed.listings) == 3
 
 
+def test_a_results_page_is_never_stored_as_a_single_advert():
+    """Une page de recherche qui porte un encart sponsorise reste une page.
+
+    Sinon l'encart entre en base sous l'adresse de la recherche, avec son
+    identifiant, et devient un comparable fantome que plus rien ne met a
+    jour. Le site dit a quoi ressemblent ses URL d'annonce; celle-ci n'y
+    ressemble pas.
+    """
+    html = _advert_html(with_similar=False)   # une seule voiture en JSON-LD
+
+    search = read_page(html, "https://www.leboncoin.fr/recherche?category=2&text=golf")
+    assert search.kind == "unknown"
+    assert search.listings == []
+
+    advert = read_page(html, "https://www.leboncoin.fr/ad/voitures/2345678901")
+    assert advert.kind == "listing"
+    assert len(advert.listings) == 1
+
+
 def test_an_unknown_site_is_explained_rather_than_ignored():
     page = read_page("<html></html>", "https://www.exemple-inconnu.fr/annonces/1")
     assert page.kind == "unknown"
