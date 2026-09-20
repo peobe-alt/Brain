@@ -62,6 +62,19 @@ Le chiffre du score disparait lui aussi tant qu'il n'y a pas de position
 prix : un score sans marche n'est pas une note d'affaire, seulement la
 lecture du texte et de l'etat.
 
+## Premier passage: la page n'est pas encore la
+
+Ces sites affichent un bandeau de consentement avant leurs annonces, et la
+page reste vide tant qu'il est affiche. L'extension attend que le DOM cesse
+de bouger, capture, et si rien n'est lisible, reprend **une fois** trois
+secondes plus tard - une seule, sinon c'est une boucle. En pratique les
+bandeaux apparaissent sans avoir a cliquer sur "Analyser".
+
+Si CarExpert n'est pas lance, l'extension le dit et ne touche a rien
+d'autre : la page du vendeur reste intacte, aucune erreur JavaScript. Si le
+serveur tombe en panne, le message reste une phrase lisible - l'ecran de
+l'utilisateur a ce moment-la, c'est le site du vendeur, pas un terminal.
+
 ## Installation
 
 Le tableau de bord la sert : onglet **Extension**, bouton *Telecharger*, ou

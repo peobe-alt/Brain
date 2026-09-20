@@ -12,7 +12,8 @@
   var MARK = "data-carexpert";
   var VERDICTS = { grab: "A SAISIR", check: "A VERIFIER", avoid: "A FUIR", unknown: "A ESTIMER" };
 
-  var state = { url: "", busy: false, deep: false, answer: null, collapsed: false };
+  var state = { url: "", busy: false, deep: false, answer: null, collapsed: false,
+                retried: false };
 
   // --- Lire la page --------------------------------------------------------
 
@@ -89,6 +90,17 @@
     clear();
     if (!answer.ok) {
       hud(answer);
+      return;
+    }
+
+    /* Rien de lisible au premier passage veut souvent dire "pas encore":
+     * ces sites affichent un bandeau de consentement avant leurs annonces,
+     * et la page reste vide tant qu'il est la. Une seule reprise, trois
+     * secondes plus tard, evite d'avoir a cliquer soi-meme. */
+    if (!answer.count && !state.retried) {
+      state.retried = true;
+      hud({ message: "Page pas encore prete, nouvelle lecture dans 3 secondes..." });
+      setTimeout(analyse, 3000);
       return;
     }
     paint(answer);
@@ -336,6 +348,7 @@
     if (!state.busy) {
       var again = node("button", "carexpert-button", "Analyser");
       again.addEventListener("click", function () {
+        state.retried = false;
         analyse();
       });
       box.appendChild(again);
@@ -399,6 +412,7 @@
     setInterval(function () {
       if (location.href !== state.url && !state.busy) {
         state.url = location.href;
+        state.retried = false;
         clear();
         analyse();
       }

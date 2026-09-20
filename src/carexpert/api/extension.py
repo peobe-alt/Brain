@@ -231,8 +231,22 @@ def analyse_page(capture: PageCapture) -> dict[str, Any]:
         )
 
     page = read_page(capture.html, capture.url)
-    with session_scope() as session:
-        outcome = absorb(session, page)
+    try:
+        with session_scope() as session:
+            outcome = absorb(session, page)
+    except Exception as exc:  # une panne ici s'affiche sur le site du vendeur
+        # L'utilisateur est en train de lire une annonce, pas un journal
+        # d'erreurs: "CarExpert a repondu 500" ne lui apprend rien et ne lui
+        # dit pas quoi faire. La trace complete reste cote serveur.
+        log.exception("extension: lecture de page impossible")
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "CarExpert n'a pas pu enregistrer cette page "
+                f"({type(exc).__name__}). Regardez la fenetre CarExpert, "
+                "puis rechargez la page."
+            ),
+        ) from exc
     activity.note(capture.url, len(outcome.results), page_bytes)
     return outcome.as_dict()
 
@@ -246,6 +260,20 @@ def analyse_deep(request: DeepRequest) -> dict[str, Any]:
             "message": "Aucune cle API Claude configuree: expertise sur les regles seules.",
         }
 
+    try:
+        return _deepen(request)
+    except HTTPException:
+        raise
+    except Exception as exc:  # meme raison: le message s'affiche sur le site
+        log.exception("extension: expertise approfondie impossible")
+        return {
+            "ok": False,
+            "message": f"Expertise impossible ({type(exc).__name__}). "
+                       "Regardez la fenetre CarExpert.",
+        }
+
+
+def _deepen(request: DeepRequest) -> dict[str, Any]:
     with session_scope() as session:
         row = _find(session, request)
         if row is None:

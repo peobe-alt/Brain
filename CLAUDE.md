@@ -158,7 +158,17 @@ Chacun vient d'un defaut reel, mesure :
    correctes du marche synthetique sortaient "A FUIR", dont une Golf de
    2024 a 4% au-dessus du marche, etat 88/100, coupable d'avoir trois
    photos. Le plancher est le score neutre, 45.
-31. **Un motif de correspondance invalide fait refuser l'extension
+31. **Une panne de l'extension s'affiche sur le site du vendeur.** Ce n'est
+   pas un terminal: "CarExpert a repondu 500" au-dessus des annonces ne dit
+   ni ce qui se passe ni quoi faire. Tout echec inattendu de la capture
+   repond une phrase lisible, la trace restant cote serveur. Meme raison
+   que l'invariant 5, autre surface.
+32. **Rien de lisible au premier passage veut souvent dire "pas encore".**
+   Ces sites affichent un bandeau de consentement avant leurs annonces, et
+   la page reste vide tant qu'il est la. Une seule reprise, trois secondes
+   plus tard, evite d'avoir a cliquer soi-meme; au-dela ce serait une
+   boucle.
+33. **Un motif de correspondance invalide fait refuser l'extension
    entiere.** `*://*.autoscout24.*/*` n'existe pas : le joker ne vaut que
    pour l'hote entier ou en tete de domaine. Les domaines s'enumerent, et un
    test verifie que chaque site connu de CarExpert est bien suivi.

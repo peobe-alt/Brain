@@ -357,6 +357,46 @@ def test_a_deep_reading_of_an_unknown_advert_is_a_404(client, monkeypatch):
     config.get_settings.cache_clear()
 
 
+def test_a_breakdown_says_what_to_do_instead_of_a_status_code(client, search_html, monkeypatch):
+    """L'ecran de l'utilisateur, a ce moment-la, c'est le site du vendeur.
+
+    Mesure: base de donnees devenue inaccessible, l'extension affichait
+    "CarExpert a repondu 500" au-dessus des annonces. Ni ce qui se passe,
+    ni quoi faire.
+    """
+    def broken(*args, **kwargs):
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr("carexpert.api.extension.absorb", broken)
+    response = client.post("/api/extension/page", json={"url": SEARCH_URL, "html": search_html})
+
+    assert response.status_code == 500
+    detail = response.json()["detail"]
+    assert "n'a pas pu enregistrer cette page" in detail
+    assert "rechargez la page" in detail
+    # Le serveur repond toujours pour la page suivante.
+    assert client.get("/api/extension/status").json()["ok"] is True
+
+
+def test_a_broken_deep_reading_does_not_leave_a_raw_error(client, search_html, monkeypatch):
+    from carexpert import config
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "cle-de-test")
+    config.get_settings.cache_clear()
+    first = client.post(
+        "/api/extension/page", json={"url": SEARCH_URL, "html": search_html}
+    ).json()["results"][0]
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("disk I/O error")
+
+    monkeypatch.setattr("carexpert.api.extension.deep_analyze", broken)
+    payload = client.post("/api/extension/deep", json={"id": first["id"]}).json()
+    assert payload["ok"] is False
+    assert "Expertise impossible" in payload["message"]
+    config.get_settings.cache_clear()
+
+
 # --- Un serveur local est ouvert a tout le navigateur ---------------------
 
 
