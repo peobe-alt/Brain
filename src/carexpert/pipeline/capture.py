@@ -130,6 +130,10 @@ def payload(session: Session, row: Listing) -> dict[str, Any]:
         "photos_analyzed": analysis.photos_analyzed if analysis else 0,
         "model": analysis.model if analysis else "",
         "basis": _basis(session, row),
+        # Une page de resultats ne donne jamais le descriptif, et c'est la que
+        # sont les pieges. Savoir lesquelles ont deja ete ouvertes evite de
+        # proposer de rouvrir ce qui est deja lu.
+        "has_detail": bool(row.description),
     }
 
 

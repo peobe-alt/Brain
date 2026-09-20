@@ -173,7 +173,14 @@ Chacun vient d'un defaut reel, mesure :
    pas, on ne tente pas la lecture "fiche": sinon l'encart sponsorise d'une
    page de recherche entre en base sous l'adresse de la recherche, et
    devient un comparable fantome que plus rien ne met a jour.
-34. **Un motif de correspondance invalide fait refuser l'extension
+34. **Aucune page n'efface ce qu'une autre a apporte.** La liste ignore le
+   descriptif, la fiche ignore souvent le code postal : ecraser l'un par
+   l'autre perd de l'information dans les deux sens. Un champ vide ne
+   remplace jamais un champ rempli, et photos comme options gardent la
+   version la plus riche. Mesure : trois fiches ouvertes pour leur
+   descriptif, un retour sur la page de resultats, vingt annonces en base
+   et zero descriptif - donc zero piege detectable.
+35. **Un motif de correspondance invalide fait refuser l'extension
    entiere.** `*://*.autoscout24.*/*` n'existe pas : le joker ne vaut que
    pour l'hote entier ou en tete de domaine. Les domaines s'enumerent, et un
    test verifie que chaque site connu de CarExpert est bien suivi.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Iterable
+from typing import Any, Iterable
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -100,35 +100,69 @@ def ingest(session: Session, listings: Iterable[ListingData]) -> IngestStats:
     return stats
 
 
+def _empty(value: Any) -> bool:
+    """Un champ que la page en cours ne porte pas."""
+    if value in (None, "", []):
+        return True
+    return getattr(value, "value", value) == "unknown"
+
+
+def _fill(row: Listing, name: str, value: Any) -> None:
+    """Ecrire, sauf pour effacer ce qu'on sait deja.
+
+    La meme annonce arrive tantot par la page de resultats, tantot par sa
+    fiche, et les deux ne portent pas les memes champs: la liste ignore le
+    descriptif, la fiche ignore souvent le code postal. Ecraser l'un par
+    l'autre perd de l'information dans les deux sens.
+    """
+    if _empty(value):
+        return
+    setattr(row, name, value)
+
+
 def _apply(row: Listing, listing: ListingData) -> None:
+    # Toujours: ce que toute page porte, et ce qui doit suivre le vendeur.
     row.fingerprint = fingerprint(listing)
     row.url = listing.url
-    row.title = listing.title
-    row.description = listing.description
     row.price_eur = listing.price_eur
     row.currency = listing.currency
-    row.make = listing.make
-    row.model = listing.model
-    row.version = listing.version
-    row.year = listing.year
-    row.km = listing.km
-    row.fuel = listing.fuel.value
-    row.gearbox = listing.gearbox.value
-    row.power_hp = listing.power_hp
-    row.body = listing.body.value
-    row.owners = listing.owners
-    row.color = listing.color
-    row.seller_type = listing.seller_type.value
-    row.seller_name = listing.seller_name
-    row.city = listing.city
-    row.postcode = listing.postcode
     row.country = listing.country
-    row.photos = [photo.model_dump() for photo in listing.photos]
-    row.options = list(listing.options)
-    row.raw = {**listing.extra, "version": listing.version}
-    row.posted_at = listing.posted_at
     row.last_seen = datetime.utcnow()
     row.active = True
+
+    # Le reste ne s'ecrase pas avec du vide. Mesure: apres avoir ouvert trois
+    # annonces pour en lire le descriptif, un simple retour sur la page de
+    # resultats remettait les trois descriptifs a zero - donc les pieges
+    # qu'ils contenaient. Vingt annonces en base, zero descriptif.
+    for name, value in (
+        ("title", listing.title),
+        ("description", listing.description),
+        ("make", listing.make),
+        ("model", listing.model),
+        ("version", listing.version),
+        ("year", listing.year),
+        ("km", listing.km),
+        ("fuel", listing.fuel.value),
+        ("gearbox", listing.gearbox.value),
+        ("power_hp", listing.power_hp),
+        ("body", listing.body.value),
+        ("owners", listing.owners),
+        ("color", listing.color),
+        ("seller_type", listing.seller_type.value),
+        ("seller_name", listing.seller_name),
+        ("city", listing.city),
+        ("postcode", listing.postcode),
+        ("posted_at", listing.posted_at),
+    ):
+        _fill(row, name, value)
+
+    # Photos et options: on garde la version la plus riche des deux.
+    photos = [photo.model_dump() for photo in listing.photos]
+    if len(photos) >= len(row.photos or []):
+        row.photos = photos
+    row.options = sorted(set(row.options or []) | set(listing.options))
+    row.raw = {**(row.raw or {}), **listing.extra,
+               "version": listing.version or (row.raw or {}).get("version")}
 
 
 def _seed_previous_price(

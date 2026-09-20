@@ -232,6 +232,24 @@ def test_the_install_page_knows_whether_the_extension_talks(client, search_html)
     assert activity["last_url"] == SEARCH_URL
 
 
+def test_the_page_says_which_adverts_have_not_been_opened_yet(client, search_html):
+    """Le descriptif n'existe que sur la fiche, et c'est la que sont les pieges."""
+    listed = client.post(
+        "/api/extension/page", json={"url": SEARCH_URL, "html": search_html}
+    ).json()["results"]
+    assert all(result["has_detail"] is False for result in listed)
+
+    # La meme annonce, ouverte: son descriptif entre en base.
+    target = listed[0]
+    detail = client.post("/api/extension/page", json={
+        "url": target["url"],
+        "html": _advert_html(with_similar=False).replace(
+            "Volvo V70 D5 Summum Geartronic", target["title"]),
+    }).json()
+    assert detail["kind"] == "listing"
+    assert detail["results"][0]["has_detail"] is True
+
+
 # --- Ce que la base ne permet pas encore de dire --------------------------
 
 

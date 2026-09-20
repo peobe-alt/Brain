@@ -62,6 +62,30 @@ Le chiffre du score disparait lui aussi tant qu'il n'y a pas de position
 prix : un score sans marche n'est pas une note d'affaire, seulement la
 lecture du texte et de l'etat.
 
+## Le descriptif n'est que sur la fiche
+
+Une page de resultats donne le prix, le kilometrage, l'annee, l'energie et
+la boite : de quoi estimer. Elle ne donne jamais le descriptif, et c'est la
+que sont les pieges ("vendu en l'etat", "moteur a revoir", "compteur non
+garanti"), ni les photos.
+
+L'extension n'ira pas les chercher toute seule : ce serait une collecte
+automatisee avec la session de l'utilisateur, exactement ce que le projet
+s'interdit. Elle fait l'inverse : elle classe, et propose d'ouvrir les trois
+qui valent le clic - celles qu'elle sait situer sur le marche et dont le
+descriptif manque encore. Les onglets s'ouvrent en arriere-plan, chacun est
+lu en arrivant, et la page de resultats se remet a jour quand ils ont tous
+ete lus.
+
+Mesure sur vingt annonces : la mieux notee ressortait "86, A SAISIR, 21%
+sous le marche, +2 842 EUR". Son descriptif, lu en un clic : "vendu en
+l'etat, moteur a revoir, embrayage qui patine, compteur non garanti, sans
+controle technique". Nouveau verdict : **score 0, A FUIR**, trois alertes
+nommees. C'est tout le produit en un geste.
+
+Cinq onglets au maximum par clic. Au-dela ce ne sont plus des pages qu'on
+ouvre pour les lire.
+
 ## Premier passage: la page n'est pas encore la
 
 Ces sites affichent un bandeau de consentement avant leurs annonces, et la

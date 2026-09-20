@@ -60,6 +60,46 @@ def test_listings_without_price_are_skipped(session):
     assert session.execute(select(Listing)).scalars().all() == []
 
 
+def test_a_results_page_does_not_erase_what_the_advert_page_gave(session):
+    """Mesure: trois fiches ouvertes pour leur descriptif, un retour sur la
+    page de resultats, et les trois descriptifs avaient disparu. Vingt
+    annonces en base, zero descriptif, donc zero piege detectable.
+
+    Les deux pages ne portent pas les memes champs: la liste ignore le
+    descriptif, la fiche ignore souvent le code postal. Aucune des deux ne
+    doit effacer ce que l'autre a apporte.
+    """
+    from carexpert.schemas import Photo
+
+    listed = _listing(price=12_000)
+    listed.postcode = "33700"
+    ingest(session, [listed])
+    session.flush()
+
+    detailed = _listing(price=12_000)
+    detailed.description = "Vendu en l'etat, moteur a revoir, compteur non garanti."
+    detailed.options = ["GPS", "Attelage"]
+    detailed.photos = [Photo(url=f"https://site.fr/p{i}.jpg") for i in range(8)]
+    detailed.postcode = None          # la fiche ne le donne pas
+    ingest(session, [detailed])
+    session.flush()
+
+    row = session.execute(select(Listing)).scalars().one()
+    assert row.description and row.postcode == "33700"
+
+    # Retour sur la page de resultats: elle ne porte ni descriptif ni options.
+    back = _listing(price=11_500)     # et le prix a baisse entre-temps
+    ingest(session, [back])
+    session.flush()
+
+    row = session.execute(select(Listing)).scalars().one()
+    assert "moteur a revoir" in row.description, "le descriptif a ete efface"
+    assert set(row.options) >= {"GPS", "Attelage"}
+    assert len(row.photos) == 8
+    assert row.postcode == "33700"
+    assert row.price_eur == 11_500, "un prix qui bouge doit, lui, s'ecrire"
+
+
 def test_stale_listings_are_deactivated(session):
     ingest(session, [_listing()])
     session.flush()

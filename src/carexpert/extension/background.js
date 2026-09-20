@@ -17,6 +17,17 @@ const DEFAULTS = {
  * avoir a redemander la page. */
 const lastByTab = new Map();
 
+/* Les onglets ouverts depuis une page de resultats, et la page qui les a
+ * ouverts. Quand ils ont tous ete lus, elle se remet a jour toute seule: un
+ * descriptif fait tomber une annonce de "a saisir" a "a fuir", et il serait
+ * absurde de laisser l'ancien verdict affiche derriere. */
+const openedFrom = new Map();
+const waitingOn = new Map();
+
+/* Jamais plus que ca en un clic. Au-dela ce ne sont plus des pages qu'on
+ * ouvre pour les lire, c'est une collecte. */
+const MAX_OPEN = 5;
+
 async function settings() {
   try {
     return Object.assign({}, DEFAULTS, await api.storage.sync.get(DEFAULTS));
@@ -80,8 +91,51 @@ async function analysePage(message, tabId) {
   if (answer.ok && Array.isArray(answer.results)) {
     lastByTab.set(tabId, { url: message.url, answer, at: Date.now() });
     paintBadge(tabId, answer.results);
+    noteDetailRead(tabId);
   }
   return answer;
+}
+
+async function openBest(urls, originTabId) {
+  if (!api.tabs || !Array.isArray(urls) || !urls.length) {
+    return { ok: false, message: "Rien a ouvrir." };
+  }
+  const wanted = urls.slice(0, MAX_OPEN);
+  let opened = 0;
+  for (const url of wanted) {
+    try {
+      // En arriere-plan: la page de resultats reste celle qu'on regarde.
+      const tab = await api.tabs.create({ url, active: false });
+      openedFrom.set(tab.id, originTabId);
+      opened += 1;
+    } catch (error) {
+      // Un onglet refuse ne doit pas emporter les autres.
+    }
+  }
+  if (opened) waitingOn.set(originTabId, (waitingOn.get(originTabId) || 0) + opened);
+  return { ok: opened > 0, opened, message: opened + " annonces ouvertes" };
+}
+
+/* Un onglet ouvert vient d'etre lu - ou ferme avant de l'etre. Quand il ne
+ * reste plus rien a attendre, la page de resultats relit ses annonces. */
+function noteDetailRead(tabId) {
+  const origin = openedFrom.get(tabId);
+  if (origin === undefined) return;
+  openedFrom.delete(tabId);
+
+  const left = (waitingOn.get(origin) || 1) - 1;
+  if (left > 0) {
+    waitingOn.set(origin, left);
+    return;
+  }
+  waitingOn.delete(origin);
+  try {
+    api.tabs.sendMessage(origin, { type: "analyse-now" }, function () {
+      void api.runtime.lastError;   // l'onglet d'origine a pu etre ferme
+    });
+  } catch (error) {
+    // idem
+  }
 }
 
 api.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -95,6 +149,8 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return analysePage(message, tabId);
       case "deep":
         return call("/api/extension/deep", { id: message.id });
+      case "open":
+        return openBest(message.urls, tabId);
       case "settings":
         return Object.assign({ ok: true }, await settings());
       case "save-settings": {
@@ -122,5 +178,10 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 if (api.tabs && api.tabs.onRemoved) {
-  api.tabs.onRemoved.addListener((tabId) => lastByTab.delete(tabId));
+  api.tabs.onRemoved.addListener((tabId) => {
+    lastByTab.delete(tabId);
+    waitingOn.delete(tabId);
+    // Ferme avant d'avoir ete lu: ne pas faire attendre la page d'origine.
+    noteDetailRead(tabId);
+  });
 }

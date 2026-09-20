@@ -337,13 +337,16 @@
     return box;
   }
 
-  function hud(answer) {
+  function hud(info) {
     var existing = document.querySelector(".carexpert-hud");
     if (existing) existing.remove();
 
     var box = node("div", "carexpert-root carexpert-hud");
     box.appendChild(node("span", "carexpert-dot", ""));
-    box.appendChild(node("span", "carexpert-hud-text", answer.message || ""));
+    box.appendChild(node("span", "carexpert-hud-text", info.message || ""));
+
+    var toOpen = info.open || [];
+    if (toOpen.length) box.appendChild(openButton(toOpen));
 
     if (!state.busy) {
       var again = node("button", "carexpert-button", "Analyser");
@@ -354,6 +357,40 @@
       box.appendChild(again);
     }
     document.body.appendChild(box);
+  }
+
+  /* Le descriptif n'existe que sur la fiche, et c'est la que sont les
+   * pieges. Plutot que d'aller les chercher - ce que l'extension ne fait
+   * pas - elle dit lesquelles valent le clic, et les ouvre a la demande. */
+  function openButton(urls) {
+    var button = node("button", "carexpert-button carexpert-primary",
+                      "Ouvrir les " + urls.length + " meilleures");
+    button.title = "Le descriptif n'est que sur la fiche de l'annonce: " +
+                   "c'est la que se trouvent les pieges.";
+    button.addEventListener("click", function () {
+      button.disabled = true;
+      button.textContent = "Ouverture...";
+      send({ type: "open", urls: urls }).then(function (answer) {
+        if (answer && answer.ok) {
+          button.textContent = answer.opened + " ouvertes, lecture en cours";
+        } else {
+          button.disabled = false;
+          button.textContent = "Ouvrir les " + urls.length + " meilleures";
+        }
+      });
+    });
+    return button;
+  }
+
+  /* Les annonces qui valent d'etre ouvertes: celles qu'on sait situer sur le
+   * marche - sinon "les meilleures" ne veut rien dire - et dont on n'a pas
+   * encore lu le descriptif. */
+  function worthOpening(results) {
+    return results
+      .filter(function (item) { return item.fair_price_eur && !item.has_detail; })
+      .sort(function (a, b) { return (b.score || 0) - (a.score || 0); })
+      .slice(0, 3)
+      .map(function (item) { return item.url; });
   }
 
   function paint(answer) {
@@ -373,13 +410,15 @@
       return item.verdict === "grab";
     }).length;
     var message = answer.message || "";
+    var toOpen = [];
     if (answer.kind === "search") {
       if (great) message += " " + great + " a saisir.";
       if (results.length && !placed) {
         message += " Cartes non reconnues: voir le tableau de bord.";
       }
+      toOpen = worthOpening(results);
     }
-    hud({ message: message });
+    hud({ message: message, open: toOpen });
   }
 
   // --- Reglages et cycle de vie -------------------------------------------
@@ -421,6 +460,7 @@
 
   api.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     if (message && message.type === "analyse-now") {
+      state.retried = false;
       analyse();
       sendResponse({ ok: true });
     }
