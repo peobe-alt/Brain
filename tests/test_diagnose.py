@@ -453,3 +453,42 @@ def test_the_file_extension_is_not_part_of_the_identifier():
     assert _listing_id(base + "K5L7PC4Q.html") == "K5L7PC4Q"
     # Et un identifiant sans extension n'est pas ampute pour autant.
     assert _listing_id(base + "K5L7PC4Q") == "K5L7PC4Q"
+
+
+def test_a_protection_answering_in_http_200_is_still_named():
+    """Un interstitiel anti-bot repond parfois 200, avec un corps court.
+
+    Ne chercher le nom que sur les reponses en erreur revient a rendre ce
+    refus-la comme une panne de configuration, et a conseiller de corriger
+    un motif de lien qui n'a rien a se reprocher.
+    """
+    interstitial = (
+        "<html><head><title>leboncoin.fr</title></head><body>"
+        "<script src='https://geo.captcha-delivery.com/captcha/?initialCid=A'></script>"
+        "</body></html>"
+    )
+    fetcher = FakeFetcher({"/recherche": interstitial})
+    report = diagnose_search("https://www.leboncoin.fr/recherche", source="leboncoin",
+                             fetcher=fetcher)
+
+    assert report.status == 200
+    assert "captcha-delivery" in report.protection
+    assert report.verdict()[0] == "bloque"
+    assert any("Ne pas insister" in action for action in report.actions())
+
+
+def test_the_url_families_are_shown_when_links_match_but_yield_nothing():
+    """Le cas pour lequel `internal_link_shapes` a ete ecrit.
+
+    Des liens reconnus, pas un champ derriere: c'est la situation leparking
+    exacte (seize liens, zero champ). La fonctionnalite ne se declenchait que
+    dans l'autre branche, celle ou aucun lien ne correspondait.
+    """
+    fetcher = FakeFetcher({"/voiture-occasion/": LEPARKING_REAL,
+                           "/tools/": "<html><body>outil</body></html>"})
+    report = diagnose_search(LEPARKING_SEARCH, source="leparking",
+                             pattern=r"/tools/[^\"'?#]+\.html", fetcher=fetcher)
+
+    assert report.samples and not any(sample.filled for sample in report.samples)
+    assert report.link_shapes, "la page connait ses propres familles d'URL"
+    assert any("Formes d'URL internes" in action for action in report.actions())

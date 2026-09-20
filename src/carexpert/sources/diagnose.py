@@ -20,7 +20,7 @@ from urllib.parse import urljoin, urlparse
 
 from ..normalize import enrich
 from ..schemas import ListingData
-from .browser import BotProtection, BrowserUnavailable, named_protection
+from .browser import BotProtection, BrowserUnavailable, detect_challenge
 from .fetcher import FetchError, PoliteFetcher, RobotsDisallowed
 from .structured import (
     extract_from_page,
@@ -134,6 +134,16 @@ class DiagnosticReport:
             )
         if self.status >= 400:
             return "echec", f"le site repond HTTP {self.status}"
+        # Une protection repond parfois en HTTP 200: un interstitiel de
+        # quelques kilo-octets qui porte le marqueur de son editeur. Rendu
+        # comme une panne de configuration, il fait corriger un motif de lien
+        # qui n'a rien a se reprocher. `detect_challenge` ne nomme un 200 que
+        # sur un corps court, donc une vraie page pleine n'arrive pas ici.
+        if self.protection and not self.results_complete:
+            return "bloque", (
+                f"le site refuse la requete: il repond par {self.protection} "
+                f"en {self.page_bytes} octets, au lieu de sa page"
+            )
         # La page de resultats se suffit parfois a elle-meme: elle publie ses
         # annonces en JSON-LD. Dans ce cas l'absence de liens ne prouve rien.
         if self.results_complete:
@@ -522,7 +532,7 @@ def diagnose_search(
         report.page_bytes = len(page.text)
         report.note = getattr(fetcher, "escalation_blocked", "")
         if not page.ok:
-            report.protection = named_protection(page.text) or ""
+            report.protection = detect_challenge(page.text, page.status) or ""
             return report
 
         links = extract_listing_links(page.text, url, pattern)
@@ -530,6 +540,13 @@ def diagnose_search(
         report.js_suspected = any(marker in page.text for marker in JS_MARKERS)
         report.rendered = page.rendered
         report.note = getattr(fetcher, "escalation_blocked", "")
+        # Une protection repond parfois en HTTP 200: un interstitiel court
+        # qui porte le marqueur de son editeur. Ne chercher le nom que sur
+        # les reponses en erreur revient a rendre ce refus-la comme une
+        # panne de configuration, et a conseiller de corriger un motif de
+        # lien qui n'a rien a se reprocher.
+        if not report.protection:
+            report.protection = detect_challenge(page.text, page.status) or ""
 
         # Voie liste: ce que la page de resultats donne sans rien ouvrir.
         rows = extract_listings_from_search(page.text, base_url=url, source=source)
@@ -565,6 +582,10 @@ def diagnose_search(
         # chose que des annonces. La page sait laquelle de ses formes d'URL est
         # la bonne, elle la repete vingt fois; on la lui demande.
         if report.samples and not any(sample.filled for sample in report.samples):
+            # C'est le cas pour lequel `internal_link_shapes` a ete ecrit -
+            # des liens reconnus, pas un champ derriere - et il ne le
+            # remplissait que dans l'autre branche.
+            report.link_shapes = internal_link_shapes(page.text, url)
             suggestion, _ = suggest_link_pattern(page.text, url)
             if suggestion and suggestion != pattern:
                 report.suggested_pattern = suggestion

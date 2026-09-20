@@ -190,3 +190,66 @@ def test_the_stylesheet_never_touches_the_site_own_classes():
             part = part.strip()
             if part:
                 assert "carexpert" in part, f"selecteur non prefixe: {part}"
+
+
+def test_only_browser_extensions_may_call_the_local_server(client, results_page):
+    """Le serveur tourne en permanence sur la machine de l'utilisateur.
+
+    Ouvrir le partage d'origine a tout `https://` ouvrait a tout le web:
+    n'importe quelle page visitee pouvait lire /api/deals, donc l'inventaire,
+    les prix et les veilles. Seules les extensions sont admises.
+    """
+    for hostile in ("https://evil.example.com", "http://attaquant.fr",
+                    "https://www.leboncoin.fr"):
+        answer = client.get("/api/deals", headers={"Origin": hostile})
+        assert not answer.headers.get("access-control-allow-origin"), hostile
+
+    for extension in ("chrome-extension://abcdefghijklmnopabcdefghijklmnop",
+                      "moz-extension://1234abcd-5678-90ef-aaaa-bbbbccccdddd"):
+        answer = client.get("/api/deals", headers={"Origin": extension})
+        assert answer.headers.get("access-control-allow-origin") == extension
+
+
+def test_an_advert_without_a_description_stays_to_be_reopened(client, session):
+    """Une page de resultats ne porte pas toujours le descriptif.
+
+    Or c'est la que se trouvent "moteur a revoir" et "vendu sans controle
+    technique" (invariant 14). En marquant ces annonces "analysees", la
+    capture les faisait sauter a la passe large du scan suivant, donc a la
+    passe de detail qui serait justement allee chercher ce descriptif.
+
+    leboncoin, lui, publie le descriptif des la liste: ses annonces n'ont
+    rien a rouvrir, et le test le verifie aussi.
+    """
+    from carexpert.db import Listing, select
+
+    bare = {"props": {"ads": [
+        {"list_id": 7100000001, "url": "https://www.leboncoin.fr/ad/voitures/7100000001",
+         "subject": "Peugeot 208 1.2 PureTech 82 Active", "price": [6900],
+         "attributes": [{"key": "mileage", "value": "96000"},
+                        {"key": "regdate", "value": "2017"}]},
+    ]}}
+    page = ('<html><head><link rel="canonical" href="' + LBC_URL + '"/>'
+            '<script id="__NEXT_DATA__" type="application/json">'
+            + json.dumps(bare) + "</script></head><body></body></html>")
+
+    client.post("/api/capture", json={"html": page, "url": LBC_URL})
+    row = session.execute(
+        select(Listing).where(Listing.source_id == "7100000001")
+    ).scalar_one()
+
+    assert not row.description
+    assert row.score is not None, "elle est tout de meme notee tout de suite"
+    assert row.analyzed_at is None, "mais elle reste a rouvrir"
+
+
+def test_an_advert_that_came_with_its_description_is_not_reopened(client,
+                                                                  results_page, session):
+    """Rouvrir une annonce deja complete coute une requete pour rien."""
+    from carexpert.db import Listing, select
+
+    client.post("/api/capture", json={"html": results_page, "url": LBC_URL})
+    rows = session.execute(select(Listing)).scalars().all()
+
+    assert rows and all(row.description for row in rows)
+    assert all(row.analyzed_at is not None for row in rows)

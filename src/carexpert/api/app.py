@@ -16,6 +16,7 @@ from fastapi import FastAPI, Form, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 
@@ -37,14 +38,19 @@ app = FastAPI(
     description="Scanner d'annonces auto avec expertise assistee",
     lifespan=lifespan,
 )
-# L'extension parle depuis l'origine du site consulte (leboncoin.fr), pas
-# depuis la notre. Sans cette ouverture, le navigateur refuse la reponse
-# avant meme que le serveur l'ait envoyee.
+# L'extension parle depuis une origine `chrome-extension://`, pas depuis la
+# notre: sans cette ouverture, le navigateur refuse la reponse avant meme
+# que le serveur l'ait envoyee.
+#
+# Mais ouvrir a tout `https://` ouvre a tout le web: le serveur tourne en
+# permanence sur la machine de l'utilisateur, et n'importe quelle page
+# visitee pourrait alors lire /api/deals, donc tout son inventaire, ses
+# prix et ses veilles. Seules les extensions sont admises.
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"^(https?://.*|chrome-extension://.*|moz-extension://.*)$",
+    allow_origin_regex=r"^(chrome-extension|moz-extension|safari-web-extension)://[a-z0-9-]+$",
     allow_methods=["POST", "GET", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type"],
 )
 app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(WEB_DIR / "templates"))
@@ -270,6 +276,14 @@ async def capture(request: Request) -> dict[str, Any]:
     if not html.strip():
         raise HTTPException(status_code=400, detail="page vide")
 
+    # Tout ce qui suit est bloquant: analyser une page leboncoin, estimer et
+    # noter chaque annonce. Sur la boucle d'evenements, le tableau de bord et
+    # le suivi de scan ne repondent plus pendant ce temps - et l'extension
+    # publie une page a chaque chargement.
+    return await run_in_threadpool(_capture_sync, html, url)
+
+
+def _capture_sync(html: str, url: str | None) -> dict[str, Any]:
     from ..pipeline.ingest import ingest
     from ..sources.captured import read_capture
 
@@ -304,7 +318,7 @@ def _value_captured(session: Any, keys: list[tuple[str, str]]) -> None:
     """
     from ..expert import analyze_offline
     from ..pipeline.ingest import from_row
-    from ..pipeline.run import _persist
+    from ..pipeline.run import _persist, _price_drops
     from ..scoring import score_deal
     from ..valuation import estimate
 
@@ -315,13 +329,23 @@ def _value_captured(session: Any, keys: list[tuple[str, str]]) -> None:
             Listing.source.in_(sources), Listing.source_id.in_(identifiers)
         )
     ).scalars().all()
+    # Une baisse de prix compte autant ici qu'ailleurs: l'extension vient
+    # justement de l'enregistrer en ingerant la page.
+    dropped = _price_drops(session, [row.id for row in rows])
     for row in rows:
         listing = from_row(row)
         valuation = estimate(session, row)
         result = analyze_offline(listing, valuation.as_dict())
-        score = score_deal(listing, valuation, result.report)
+        score = score_deal(listing, valuation, result.report,
+                           price_dropped=row.id in dropped)
         _persist(session, row, valuation, result.report, score,
                  model=result.model, photos_analyzed=0)
+        # Une page de resultats ne porte pas le descriptif. La marquer
+        # "analysee" ferait sauter cette annonce a la passe large du prochain
+        # scan, donc a la passe de detail qui serait allee le chercher
+        # (invariant 14).
+        if not row.description:
+            row.analyzed_at = None
     session.flush()
 
 

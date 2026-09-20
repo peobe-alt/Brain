@@ -99,16 +99,25 @@ def embedded_states(html: str) -> Iterator[Any]:
 
     soup = _soup(html)
 
+    # `__NEXT_DATA__` porte `type="application/json"` ET un `id` connu: sans
+    # cette trace, il est parcouru deux fois, et le second parcours refait
+    # tout le travail du premier sur la plus grosse charge utile de la page
+    # pour n'en tirer que des doublons.
+    seen: set[int] = set()
+
     for script in soup.find_all("script", attrs={"type": "application/json"}):
         raw = (script.string or script.get_text() or "").strip()
         if not raw:
             continue
+        seen.add(id(script))
         parsed = _loads(raw)
         if parsed is not None:
             yield parsed
 
     for identifier in JSON_SCRIPT_IDS:
         for script in soup.find_all("script", attrs={"id": identifier}):
+            if id(script) in seen:
+                continue
             raw = (script.string or script.get_text() or "").strip()
             parsed = _loads(raw)
             if parsed is not None:
@@ -249,7 +258,7 @@ def _matching_brace(
 MERGE_KEYS = {
     "vehicle", "car", "voiture", "auto", "location", "place", "owner", "seller",
     "vendeur", "dealer", "characteristics", "caracteristiques", "specifications",
-    "specs", "technicaldata", "criteria", "critères", "criteres", "params",
+    "specs", "technicaldata", "criteria", "criteres", "critres", "params",
     "parameters", "properties", "details", "detail", "data", "infos", "info",
     "pricing", "prices", "attributes", "attributs", "fields", "options",
     "node", "item", "offer", "listing", "classified", "annonce", "ad", "summary",
@@ -524,14 +533,13 @@ def listing_from_record(
 
     raw_url = _scalar(_pick(flat, "url"))
     identifier = _scalar(_pick(flat, "id"))
-    if raw_url:
-        url = canonical_url(urljoin(base_url, str(raw_url)))
-    elif identifier is not None:
-        # No link in the payload: the identity is still known, and the caller
-        # can rebuild the address from the site's advert URL shape.
-        url = urljoin(base_url, f"#{identifier}")
-    else:
+    if not raw_url:
+        # Sans lien, l'annonce n'a pas d'adresse. Lui donner celle de la page
+        # de resultats suivie d'un fragment fabrique donne un lien qui ramene
+        # a la liste: le tableau de bord, l'extension et la passe de detail
+        # pointent tous au mauvais endroit, et rien ne signale l'erreur.
         return None
+    url = canonical_url(urljoin(base_url, str(raw_url)))
 
     source_id = str(identifier) if identifier not in (None, "") else _listing_id(url)
 

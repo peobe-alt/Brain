@@ -129,7 +129,7 @@ def test_scan_on_the_demo_source_reports_its_work(cli):
     assert "estimees" in result.output
 
 
-def test_a_pasted_placeholder_is_refused_before_it_costs_a_request():
+def test_a_pasted_placeholder_is_refused_before_it_costs_a_request(cli):
     """"URL leparking" partait en requete et le diagnostic accusait le site.
 
     Mesure sur une vraie session: trois sources testees, trois "SITE
@@ -137,17 +137,11 @@ def test_a_pasted_placeholder_is_refused_before_it_costs_a_request():
     pas des adresses. Le seul moment ou l'on peut le savoir, c'est avant de
     partir.
     """
-    from typer.testing import CliRunner
-
-    from carexpert.cli import app
-
-    runner = CliRunner()
     for bad in ("URL leparking", "pas une url", "www.leparking.fr", "ftp://site.fr/x"):
-        result = runner.invoke(app, ["diagnose", "-s", "leparking", "--url", bad])
+        result = _run(cli, "diagnose", "-s", "leparking", "--url", bad)
         assert result.exit_code == 2, bad
         assert "Ce n'est pas une URL" in result.output, bad
 
     # Et une vraie adresse passe le controle: il filtre la faute de frappe,
     # pas la source.
-    result = runner.invoke(app, ["scan", "-s", "demo", "--url", "pas une url"])
-    assert result.exit_code == 2
+    assert _run(cli, "scan", "-s", "demo", "--url", "pas une url").exit_code == 2

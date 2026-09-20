@@ -107,11 +107,22 @@ def read_capture(
     origin = url or page_origin(html) or f"https://{name}.invalid/"
 
     rows = extract_listings_from_search(html, base_url=origin, source=name)
-    if rows:
+    if len(rows) > 1:
         return [enrich(row) for row in rows]
 
+    # Une page d'annonce n'a pas d'`ItemList`, donc la voie "liste" retombe
+    # sur l'etat embarque et rend une seule annonce - sans son descriptif,
+    # que seul `extract_from_page` va chercher (schema.org, microdata,
+    # OpenGraph, selecteurs YAML). Or c'est dans le descriptif que se
+    # trouvent "moteur a revoir" et "vendu sans controle technique"
+    # (invariant 14). Sur une page a une seule annonce, la voie complete
+    # passe donc devant.
     single = extract_from_page(html, url=origin, source=name)
-    return [enrich(single)] if single is not None else []
+    if single is not None:
+        if rows and not single.description and rows[0].description:
+            single.description = rows[0].description
+        return [enrich(single)]
+    return [enrich(row) for row in rows]
 
 
 def capture_files(path: Path) -> Iterator[Path]:

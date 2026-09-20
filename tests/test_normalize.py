@@ -134,3 +134,21 @@ def test_cross_language_model_names_collapse():
         enrich(listing)
         labels.append((listing.make, listing.model))
     assert len(set(labels)) == 1
+
+
+def test_a_commercial_badge_does_not_decide_the_fuel_alone():
+    """Renault vend la Megane "E-Tech electrique" et la Clio "E-Tech hybride".
+
+    Regression introduite en corrigeant l'invariant 28: en remontant HYBRID
+    au-dessus d'ELECTRIC, le badge "e-tech" a fait basculer toutes les
+    electriques Renault de grande serie en hybrides, donc valorisees sur la
+    mauvaise courbe. Un badge ne tranche que lorsque aucun mot explicite ne
+    l'a fait.
+    """
+    assert detect_fuel("Renault Megane E-Tech Electrique 220ch") is Fuel.ELECTRIC
+    assert detect_fuel("Renault Scenic E-Tech electrique 170") is Fuel.ELECTRIC
+    assert detect_fuel("Renault Clio E-Tech 145 hybride") is Fuel.HYBRID
+    assert detect_fuel("Renault Captur E-Tech 160 hybride rechargeable") is Fuel.PHEV
+    # Et sans mot explicite, le badge garde son sens usuel.
+    assert detect_fuel("Renault Clio V E-Tech 140") is Fuel.HYBRID
+    assert detect_fuel("Nissan Qashqai e-Power") is Fuel.HYBRID

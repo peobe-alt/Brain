@@ -202,6 +202,17 @@ Chacun vient d'un defaut reel, mesure :
    affaire : le chiffre l'emporte sur le mot, et il vient de l'echantillon
    qu'on vient justement de juger trop maigre. Le refus de juger doit se
    dire, pas se contredire a la ligne suivante.
+36. **Un badge commercial ne dit pas le carburant a lui seul.** Renault vend
+   la Megane "E-Tech electrique" et la Clio "E-Tech hybride". En remontant
+   HYBRID au-dessus d'ELECTRIC pour corriger l'invariant 28, le badge
+   "e-tech" a fait basculer toutes les electriques Renault de grande serie
+   en hybrides. Les mots explicites tranchent d'abord, les badges ensuite.
+37. **Un serveur local ouvert a toutes les origines est ouvert a tout le
+   web.** `carexpert serve` tourne en permanence pendant qu'on navigue, et
+   le partage d'origine autorisait tout `https://` pour que l'extension
+   puisse parler : n'importe quelle page visitee pouvait alors lire
+   `/api/deals`, donc l'inventaire, les prix et les veilles. Seules les
+   origines `chrome-extension://` et assimilees sont admises.
 
 ## Collecte
 

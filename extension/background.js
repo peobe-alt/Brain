@@ -25,6 +25,6 @@ chrome.runtime.onMessage.addListener((message, _sender, respond) => {
   return true;
 });
 
-chrome.action.onClicked?.addListener((tab) => {
-  chrome.tabs.sendMessage(tab.id, { kind: "run" });
-});
+// Pas d'ecouteur `action.onClicked` ici: le manifeste declare un
+// `default_popup`, et Chrome n'emet alors jamais cet evenement. La relance
+// manuelle passe par popup.js, qui envoie le meme message.

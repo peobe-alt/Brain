@@ -206,3 +206,65 @@ def test_importing_the_same_page_twice_does_not_duplicate(session, tmp_path,
     assert first.collected["leboncoin"].created == 6
     assert second.collected["leboncoin"].created == 0
     assert second.collected["leboncoin"].seen == 6
+
+
+def test_a_captured_advert_page_keeps_its_description(tmp_path):
+    """La voie "liste" rend une annonce sans descriptif; la voie complete non.
+
+    Une page d'annonce n'a pas d'`ItemList`, donc l'extraction retombait sur
+    l'etat embarque et rendait bien une annonce - mais sans le texte du
+    vendeur, que seul `extract_from_page` va chercher. Or c'est la que se
+    trouve "moteur a revoir" (invariant 14).
+    """
+    url = "https://www.leboncoin.fr/ad/voitures/2456789012"
+    jsonld = {
+        "@context": "https://schema.org", "@type": "Car",
+        "name": "Peugeot 308 1.5 BlueHDi 130 Allure",
+        "description": "Moteur a revoir, vendu sans controle technique.",
+        "offers": {"@type": "Offer", "price": "12500", "priceCurrency": "EUR"},
+    }
+    state = {"props": {"ad": {
+        "list_id": 2456789012, "url": "/ad/voitures/2456789012",
+        "subject": "Peugeot 308 1.5 BlueHDi 130 Allure", "price": [12500],
+        "attributes": [{"key": "mileage", "value": "84000"},
+                       {"key": "regdate", "value": "2019"}],
+    }}}
+    page = (f'<html><head><link rel="canonical" href="{url}"/>'
+            '<script type="application/ld+json">' + json.dumps(jsonld) + "</script>"
+            '<script id="__NEXT_DATA__" type="application/json">'
+            + json.dumps(state) + "</script></head><body></body></html>")
+
+    rows = read_capture(page)
+
+    assert len(rows) == 1
+    assert "Moteur a revoir" in rows[0].description
+    assert rows[0].km == 84000, "l'etat embarque comble ce que schema.org omet"
+
+
+def test_an_advert_with_no_link_is_dropped_rather_than_mislabelled():
+    """Une annonce sans adresse ne recoit pas celle de la page de resultats.
+
+    Lui donner l'URL de la liste suivie d'un fragment fabrique donne un lien
+    qui ramene a la liste: le tableau de bord, l'extension et la passe de
+    detail pointent tous au mauvais endroit, et rien ne signale l'erreur.
+    """
+    from carexpert.sources.embedded import extract_listings_from_state
+
+    state = {"ads": [
+        {"classifiedId": "69109476349", "customerPrice": 9990,
+         "vehicle": {"make": "RENAULT", "model": "Clio", "mileage": 78000,
+                     "firstRegistrationDate": "2018-04-01"}},
+        {"classifiedId": "69109476350", "url": "/auto-occasion-annonce-69109476350.html",
+         "customerPrice": 11990,
+         "vehicle": {"make": "RENAULT", "model": "Clio", "mileage": 52000,
+                     "firstRegistrationDate": "2020-02-01"}},
+    ]}
+    html = f'<script id="__NEXT_DATA__" type="application/json">{json.dumps(state)}</script>'
+
+    rows = extract_listings_from_state(
+        html, base_url="https://www.lacentrale.fr/listing?x=1", source="lacentrale"
+    )
+
+    assert [row.source_id for row in rows] == ["69109476350"]
+    assert "#" not in rows[0].url
+    assert rows[0].url.endswith("/auto-occasion-annonce-69109476350.html")

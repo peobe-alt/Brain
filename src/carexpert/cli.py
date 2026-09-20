@@ -468,16 +468,23 @@ def diagnose(
         raise typer.Exit(1)
 
     console.print(f"[dim]Test de {target}[/dim]\n")
-    with console.status("Verification en cours (rythme poli, comptez quelques secondes)..."):
-        report = diagnose_search(
-            target,
-            source=source,
-            pattern=config.get("listing_link_pattern", r"/\d{5,}"),
-            selectors=config.get("selectors"),
-            samples=samples,
-            fetcher=fetcher_for(config, browser=browser),
-            save_to=save,
-        )
+    # `diagnose_search` ne ferme que le fetcher qu'il a cree lui-meme. En lui
+    # en passant un, c'est a nous de le fermer: sinon `--browser` laisse un
+    # Chromium et son pilote derriere lui a chaque lancement.
+    fetcher = fetcher_for(config, browser=browser)
+    try:
+        with console.status("Verification en cours (rythme poli, comptez quelques secondes)..."):
+            report = diagnose_search(
+                target,
+                source=source,
+                pattern=config.get("listing_link_pattern", r"/\d{5,}"),
+                selectors=config.get("selectors"),
+                samples=samples,
+                fetcher=fetcher,
+                save_to=save,
+            )
+    finally:
+        fetcher.close()
 
     level, phrase = report.verdict()
     color, label = VERDICT_DIAG.get(level, ("white", level.upper()))

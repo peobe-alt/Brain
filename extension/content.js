@@ -112,12 +112,22 @@ async function run() {
   const endpoint = stored[ENDPOINT_KEY] || DEFAULT_ENDPOINT;
 
   banner("CarExpert lit cette page...", "busy");
-  const answer = await chrome.runtime.sendMessage({
-    kind: "capture",
-    endpoint,
-    url: location.href,
-    html: document.documentElement.outerHTML,
-  });
+  let answer;
+  try {
+    answer = await chrome.runtime.sendMessage({
+      kind: "capture",
+      endpoint,
+      url: location.href,
+      html: document.documentElement.outerHTML,
+    });
+  } catch (error) {
+    // Le canal se rompt des que le service worker est evince, ou apres un
+    // rechargement de l'extension - courant quand on l'installe a la main.
+    // Sans ce filet, la banniere "lit cette page..." reste sur le site pour
+    // toujours: seules les bannieres vertes s'effacent seules.
+    banner(`CarExpert: ${error}. Rechargez la page.`, "error");
+    return;
+  }
 
   if (!answer || answer.error) {
     banner(
