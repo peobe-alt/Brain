@@ -213,6 +213,13 @@ Chacun vient d'un defaut reel, mesure :
    puisse parler : n'importe quelle page visitee pouvait alors lire
    `/api/deals`, donc l'inventaire, les prix et les veilles. Seules les
    origines `chrome-extension://` et assimilees sont admises.
+38. **`verified: true` se perime.** Le YAML AutoScout24 le portait, sur la
+   foi d'une collecte reelle dont les invariants 11, 12, 17 et 19 citent les
+   mesures. Mesure du 2026-09-20 : le `robots.txt` du site interdit `/lst/`,
+   donc la page de resultats, et le diagnostic s'arrete sans rien
+   telecharger. Soit la regle a change depuis, soit cette collecte ne l'a
+   pas respectee. Un drapeau de validation dit ce qui marchait le jour ou
+   on l'a pose, jamais ce qui marche aujourd'hui : il se redate, ou il ment.
 
 ## Collecte
 
