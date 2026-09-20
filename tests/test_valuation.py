@@ -10,7 +10,20 @@ from carexpert.valuation import estimate
 
 
 def test_estimate_recovers_the_synthetic_market(demo_market):
-    """The demo market has a known fair price; we should land close to it."""
+    """La chaine complete tourne et retombe sur le prix connu.
+
+    Ce test **ne mesure pas la precision de l'estimateur**, et il ne faut
+    pas le lire comme tel: `sources/demo.py` fabrique ses prix avec
+    exactement les constantes de `valuation/adjust.py`, donc on regarde ici
+    l'estimateur inverser son propre generateur. Mesure: en portant
+    `AGE_RATE_MAINSTREAM` de 0,125 a 0,22, presque le double, ce test
+    passait toujours.
+
+    Ce qu'il vaut, c'est un controle de bout en bout - ingestion, paliers,
+    ajustement, mediane robuste - sur un jeu ou la verite est connue. La
+    vraie mesure de precision est dans `test_accuracy.py`, contre une loi de
+    prix que l'estimateur ne connait pas.
+    """
     session = demo_market
     errors = []
     for row in session.execute(select(Listing)).scalars().all():
@@ -23,7 +36,9 @@ def test_estimate_recovers_the_synthetic_market(demo_market):
         errors.append(abs(valuation.fair_price_eur - truth) / truth)
 
     assert len(errors) > 100, "echantillon trop petit pour conclure"
-    assert statistics.median(errors) < 0.12
+    # Mesure: 5,7 %. Le seuil etait a 12 %, soit plus du double de marge,
+    # ce qui laissait passer n'importe quelle derive.
+    assert statistics.median(errors) < 0.075, statistics.median(errors)
 
 
 def test_bargains_and_traps_are_both_flagged_as_cheap(demo_market):

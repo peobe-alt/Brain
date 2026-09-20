@@ -265,6 +265,29 @@ Chacun vient d'un defaut reel, mesure :
    annonce sans comparable n'y compte pas comme un ecart nul, sans quoi une
    base entierement "A ESTIMER" paraitrait parfaitement calibree. Temoin sur
    le marche de demonstration : 49 % sous le marche, ecart median 0,4 %.
+43. **Un modele mesure contre son propre generateur ne peut pas echouer.**
+   `sources/demo.py` fabrique ses prix avec **exactement** les constantes de
+   `valuation/adjust.py` : 0,125 et 0,155 de decote annuelle, 0,30 et 0,38
+   au kilometrage, +5 % pour une automatique, et la meme forme. Le test de
+   precision regardait donc l'estimateur inverser son propre generateur.
+   Mesure : en portant `AGE_RATE_MAINSTREAM` de 0,125 a 0,22, presque le
+   double, il passait toujours, et son seuil a 12 % laissait deux fois la
+   marge de l'erreur reelle (5,7 %). `tests/market.py` fournit l'autre
+   metre : perte concave en kilometrage, decote en racine, plancher de
+   reprise, rupture de generation. Un garde-fou verifie que ce metre n'est
+   pas refait du meme bois, sinon la mesure redevient circulaire sans que
+   rien n'echoue.
+44. **La precision vient de la selection des comparables, pas des courbes.**
+   Sur une bande etroite en annee et en kilometrage, toute loi de prix lisse
+   est quasi lineaire : l'ajustement n'a plus qu'une correction marginale a
+   porter. Mesure sur un marche qui ignore nos courbes (divergence de forme
+   x1,63) : 4,3 % d'erreur mediane, biais -0,6 %. Et en faisant varier la
+   decote annuelle d'un facteur six, de 0,06 a 0,35, la mediane ne va que de
+   5,1 a 7,0 % quand le p90 passe de 16,4 a 22,9 % contre 11,7 % a la bonne
+   valeur. **C'est donc le p90 qui tient les courbes, et lui seul** : un
+   test sur la mediane est aveugle a leur derive. Consequence de conception :
+   refaire les courbes sur ses propres donnees rapporte peu ; elargir le
+   vivier de comparables rapporte beaucoup.
 
 ## Collecte
 
@@ -296,7 +319,14 @@ extension/     compagnon Chrome: annote les annonces que vous consultez
 
 ## Tests
 
-Tout tourne hors ligne. Le marche synthetique (`sources/demo.py`) contient de
-vraies affaires et des pieges connus, ce qui permet de mesurer la qualite du
-classement et pas seulement l'absence d'erreur. Les appels reseau sont testes
-contre un serveur HTTP local, jamais contre un site reel.
+Tout tourne hors ligne. Les appels reseau sont testes contre un serveur HTTP
+local, jamais contre un site reel.
+
+Deux marches synthetiques, et ils ne servent pas a la meme chose :
+
+- `sources/demo.py` contient de vraies affaires et des pieges connus. Il
+  mesure la **qualite du classement**, ce qui ne doit rien aux courbes de
+  decote. Il ne mesure pas la precision du prix : ses prix sont fabriques
+  avec les constantes de l'estimateur (invariant 43) ;
+- `tests/market.py` obeit a une autre loi de prix, que l'estimateur ne
+  connait pas. Il mesure la **precision**, et lui peut echouer.

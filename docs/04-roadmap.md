@@ -22,7 +22,9 @@
 - diagnostic de source en une commande, qui montre ce qu'il a vu plutot que
   de le decrire : familles d'URL de la page, forme de recherche que le site
   declare, motif de lien deduit
-- 300 tests, tous hors ligne, dont la mesure de separation affaires / pieges
+- 305 tests, tous hors ligne, dont la mesure de separation affaires / pieges
+- precision de l'estimation mesuree contre un marche independant :
+  4,3 % d'erreur mediane, biais -0,6 %
 - controle de calibration de la cote (`carexpert calibration`) : la moitie
   d'une base saine doit ressortir au-dessus de sa cote
 

@@ -31,6 +31,11 @@ seize vraies affaires et quatre annonces au prix.
 
 C'est exactement ce que le produit doit faire, et c'est verifie par un test.
 
+Et sur la precision du prix lui-meme, mesuree contre un marche qui n'obeit
+pas aux courbes de l'outil : **4,3 % d'erreur mediane, biais -0,6 %**. Le
+detail de la mesure, et pourquoi elle ne se fait pas sur le marche de
+demonstration, sont dans [le scoring](docs/03-scoring.md).
+
 ---
 
 ## Essayer en une commande
@@ -327,7 +332,7 @@ parallele, et les protections anti-bot ne se contournent pas.
 
 ```bash
 pip install -e ".[dev,photos]"
-pytest -q                   # 300 tests, tous hors ligne
+pytest -q                   # 305 tests, tous hors ligne
 carexpert init              # creer la base (les autres commandes le font seules)
 carexpert calibration       # la cote est-elle centree, ou seulement flatteuse ?
 carexpert sources           # sources disponibles et leur etat

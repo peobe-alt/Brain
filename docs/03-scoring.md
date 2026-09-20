@@ -136,6 +136,55 @@ affaires et quatre annonces au prix.
 
 C'est toute la raison d'etre de l'outil.
 
+## Ce que vaut vraiment l'estimation
+
+Mesure du 20 septembre 2026, sur un marche de 320 annonces qui **n'obeit pas
+aux courbes de l'outil** : perte concave en kilometrage, decote annuelle en
+racine, plancher de reprise, et une rupture de generation qu'un modele
+continu n'a aucun moyen de representer. Divergence de forme entre les deux
+lois : x1,63.
+
+| | |
+|---|---|
+| Erreur mediane | **4,3 %** |
+| p90 | 11,7 % |
+| Biais median | -0,6 % |
+
+L'erreur residuelle est du meme ordre que le bruit injecte dans le marche :
+l'estimateur retrouve le prix a ce que le hasard laisse.
+
+Cette mesure remplace celle qui existait avant, faite sur le marche de
+demonstration. Ce marche-la fabrique ses prix avec **exactement** les
+constantes de `valuation/adjust.py` : on y regardait l'estimateur inverser
+son propre generateur. En doublant presque la decote annuelle, de 0,125 a
+0,22, l'ancien test passait toujours.
+
+**La precision vient de la selection des comparables, pas des courbes.** Sur
+une bande etroite en annee et en kilometrage, toute loi de prix lisse est
+quasi lineaire : l'ajustement n'a plus qu'une correction marginale a porter.
+En faisant varier la decote annuelle d'un facteur six :
+
+| Decote annuelle | Erreur mediane | p90 |
+|---|---|---|
+| 0,060 | 5,1 % | 16,4 % |
+| **0,125** (valeur du projet) | **4,3 %** | **11,7 %** |
+| 0,220 | 5,1 % | 14,5 % |
+| 0,350 | 7,0 % | 22,9 % |
+
+La mediane bouge a peine, le p90 double. Les courbes portent les extremes,
+la ou il faut extrapoler ; au centre, les comparables font le travail. Deux
+consequences pratiques : refaire les courbes sur ses propres donnees rapporte
+peu, elargir le vivier de comparables rapporte beaucoup.
+
+Deux invariants ont ete verifies sur ce meme marche independant :
+
+- **le crosspost ne souleve pas la cote.** 240 copies professionnelles
+  gonflees de 12 a 15 % ajoutees a 200 annonces : l'erreur mediane ne bouge
+  pas ;
+- **hors echantillon, le verdict se retire.** Une Clio de 13 ans a 220 000 km
+  estimee sur un parc de voitures de moins de 5 ans sort a 0,31 de confiance,
+  sous le seuil : **A ESTIMER**.
+
 ## Verifier que la cote est centree
 
 Un scan affiche ses vingt meilleures affaires, et ses vingt meilleures ont

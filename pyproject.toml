@@ -41,7 +41,7 @@ where = ["src"]
 carexpert = ["sources/sites/*.yaml", "expert/knowledge/*", "web/templates/*", "web/static/*"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 testpaths = ["tests"]
 
 [tool.ruff]
