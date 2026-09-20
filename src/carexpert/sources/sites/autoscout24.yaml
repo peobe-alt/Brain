@@ -21,14 +21,16 @@ base_url: https://www.autoscout24.fr
 # Encore a confirmer: les bornes de prix, de kilometrage et d'annee
 # (pricefrom, priceto, kmto, fregfrom), qui ne servent que si l'utilisateur
 # demande ces filtres. La voie sure reste de coller son URL.
-# Remis a false le 2026-09-20: le robots.txt du site interdit /lst/, donc la
-# page de resultats. Mesure: `carexpert diagnose -s autoscout24 --make
-# Volkswagen --model Golf` s'arrete sur "INTERDIT PAR LE ROBOTS.TXT" sans
-# rien telecharger. Les mesures citees dans les invariants 11, 12, 17 et 19
-# viennent d'une collecte anterieure de ce meme chemin: soit la regle a
-# change depuis, soit cette collecte ne l'a pas respectee. Dans les deux cas
-# le drapeau ne peut pas rester a true.
-verified: false
+# Le robots.txt du site autorise `/lst/<marque>/<modele>`. Il interdit
+# `/lst?` et `/lst/?`, c'est-a-dire l'ancienne recherche a parametres, et
+# notre lecteur a longtemps lu ces deux lignes comme un refus de tout
+# `/lst` - voir sources/robots.py, qui existe pour ca.
+#
+# Le site nomme par ailleurs GPTBot, ClaudeBot, CCBot et Google-Extended
+# pour leur interdire tout le site. CarExpert n'est aucun d'eux et releve
+# du groupe general, mais l'intention est claire et merite d'etre connue
+# avant d'augmenter le rythme ou le volume.
+verified: true
 search_url: "https://www.autoscout24.fr/lst/{make}/{model}?atype=C&ustate=N%2CU&cy={country}&damaged_listing=exclude&sort=standard&desc=0&pricefrom={price_min}&priceto={price_max}&kmto={km_max}&fregfrom={year_min}&page={page}"
 
 # AutoScout24 n'utilise pas les codes ISO pour les pays.

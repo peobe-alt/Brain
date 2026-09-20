@@ -21,7 +21,6 @@ import json
 import logging
 import random
 import time
-import urllib.robotparser
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
@@ -29,6 +28,7 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 from ..config import get_settings
+from .robots import RobotsRules
 
 log = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ class PoliteFetcher:
         ) * 3600
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._last_request: dict[str, float] = {}
-        self._robots: dict[str, urllib.robotparser.RobotFileParser | None] = {}
+        self._robots: dict[str, RobotsRules | None] = {}
         self._client = httpx.Client(
             follow_redirects=True,
             timeout=settings.request_timeout,
@@ -137,38 +137,33 @@ class PoliteFetcher:
 
     # -- robots ------------------------------------------------------------
 
-    def _robots_for(self, url: str) -> urllib.robotparser.RobotFileParser | None:
+    def _robots_for(self, url: str) -> RobotsRules | None:
         parsed = urlparse(url)
         origin = f"{parsed.scheme}://{parsed.netloc}"
         if origin in self._robots:
             return self._robots[origin]
-        parser: urllib.robotparser.RobotFileParser | None = urllib.robotparser.RobotFileParser()
-        assert parser is not None
-        parser.set_url(urljoin(origin, "/robots.txt"))
+        rules: RobotsRules | None = None
         try:
             response = self._client.get(urljoin(origin, "/robots.txt"))
-            if response.status_code >= 400:
-                parser = None
-            else:
-                parser.parse(response.text.splitlines())
+            if response.status_code < 400:
+                rules = RobotsRules.parse(response.text)
         except httpx.HTTPError as exc:
             log.debug("robots.txt unreachable for %s: %s", origin, exc)
-            parser = None
-        self._robots[origin] = parser
-        return parser
+        self._robots[origin] = rules
+        return rules
 
     def allowed(self, url: str) -> bool:
         if not self.respect_robots:
             return True
-        parser = self._robots_for(url)
-        if parser is None:  # no robots.txt published: nothing forbids us
+        rules = self._robots_for(url)
+        if rules is None:  # no robots.txt published: nothing forbids us
             return True
-        return parser.can_fetch(self.user_agent, url)
+        return rules.allowed(self.user_agent, url)
 
     def crawl_delay(self, url: str) -> float:
-        parser = self._robots_for(url) if self.respect_robots else None
-        if parser is not None:
-            declared = parser.crawl_delay(self.user_agent)
+        rules = self._robots_for(url) if self.respect_robots else None
+        if rules is not None:
+            declared = rules.crawl_delay(self.user_agent)
             if declared:
                 return max(float(declared), self.delay)
         return self.delay

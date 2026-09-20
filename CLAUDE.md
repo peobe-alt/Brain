@@ -213,13 +213,23 @@ Chacun vient d'un defaut reel, mesure :
    puisse parler : n'importe quelle page visitee pouvait alors lire
    `/api/deals`, donc l'inventaire, les prix et les veilles. Seules les
    origines `chrome-extension://` et assimilees sont admises.
-38. **`verified: true` se perime.** Le YAML AutoScout24 le portait, sur la
-   foi d'une collecte reelle dont les invariants 11, 12, 17 et 19 citent les
-   mesures. Mesure du 2026-09-20 : le `robots.txt` du site interdit `/lst/`,
-   donc la page de resultats, et le diagnostic s'arrete sans rien
-   telecharger. Soit la regle a change depuis, soit cette collecte ne l'a
-   pas respectee. Un drapeau de validation dit ce qui marchait le jour ou
-   on l'a pose, jamais ce qui marche aujourd'hui : il se redate, ou il ment.
+38. **Un `robots.txt` se lit comme la norme le dit, pas comme il parse.**
+   `urllib.robotparser` se trompe dans les deux sens, mesure sur le fichier
+   reel d'AutoScout24. Il bloque trop sur `?` : le site ecrit
+   `Disallow: /lst?` pour viser la recherche a parametres, et la
+   bibliotheque fait passer le motif par `urlunparse(urlparse(path))`, ce
+   qui supprime la query vide et laisse `/lst`, prefixe qui interdit alors
+   `/lst/volkswagen/golf`. Cette seule ligne a fait declarer la plus grosse
+   source du projet interdite alors que le site l'autorise. Et il ne bloque
+   pas assez sur les jokers : `Disallow: */util/*` est compare par
+   `startswith`, or aucune URL ne commence par `*`. `sources/robots.py`
+   applique RFC 9309 : jokers `*` et `$`, motif compare au chemin **et** a
+   la query, regle la plus longue gagnante, `Allow` l'emportant a egalite.
+39. **Un site peut nommer les robots d'IA pour les ecarter.** AutoScout24
+   interdit tout a GPTBot, ClaudeBot, CCBot et Google-Extended, tout en
+   autorisant le groupe general. Un robot nomme lit son groupe et ignore le
+   general, meme plus permissif. CarExpert n'est aucun d'eux, mais
+   l'intention du site se lit et se respecte avant d'augmenter le rythme.
 
 ## Collecte
 
