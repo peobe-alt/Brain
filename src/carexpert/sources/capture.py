@@ -82,9 +82,14 @@ def read_page(html: str, url: str, *, source: str | None = None) -> CapturedPage
         if reader(page, html, config):
             return page
 
+    # Dire lequel des deux cas on est: une page qui n'est ni une liste ni une
+    # annonce (accueil, compte, panier), ou un site dont les annonces ne sont
+    # pas publiees dans un format lisible. Le premier demande d'aller
+    # ailleurs, le second ne demande rien du tout a l'utilisateur.
     page.reason = (
-        "Cette page ne publie aucune annonce lisible. Ouvrez une page de "
-        "resultats ou une annonce du site."
+        f"{source} ne publie pas ses annonces dans un format lisible sur cette "
+        "page. Si vous etes bien sur une liste de resultats ou sur une annonce, "
+        "ce site n'est pas encore pris en charge: signalez-le."
     )
     return page
 

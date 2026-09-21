@@ -155,11 +155,19 @@ def test_an_unknown_site_is_explained_rather_than_ignored():
     assert "pas encore connu" in page.reason
 
 
-def test_a_known_site_with_nothing_readable_says_so():
+def test_a_known_site_with_nothing_readable_says_which_case_it_is():
+    """Deux echecs differents, deux consignes differentes.
+
+    "Ouvrez une page de resultats" quand on est bien sur une page de
+    resultats laisse l'utilisateur chercher ce qu'il a mal fait, alors qu'il
+    n'a rien fait de mal: c'est le site qui ne publie pas ses annonces dans
+    un format lisible.
+    """
     page = read_page("<html><body>Nos agences</body></html>", SEARCH_URL)
     assert page.kind == "unknown"
     assert page.source == "autoscout24"
-    assert "aucune annonce lisible" in page.reason
+    assert "autoscout24" in page.reason
+    assert "pas encore pris en charge" in page.reason
 
 
 def test_the_country_comes_from_the_domain_being_browsed():
@@ -212,7 +220,7 @@ def test_a_page_with_nothing_to_read_answers_in_plain_words(client):
         "/api/extension/page", json={"url": SEARCH_URL, "html": "<html>rien</html>"}
     ).json()
     assert payload["count"] == 0
-    assert "aucune annonce lisible" in payload["message"]
+    assert "pas encore pris en charge" in payload["message"]
 
 
 def test_a_page_too_heavy_to_read_is_refused_with_a_reason(client):
