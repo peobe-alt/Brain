@@ -437,6 +437,7 @@ def extension_page(request: Request):
             "folder": str(EXTENSION_DIR),
             "sites": sorted(sources),
             "activity": extension_api.activity,
+            "diagnostic": extension_api.diagnostic_state(),
             "deep_ready": bool(get_settings().anthropic_api_key),
         },
     )

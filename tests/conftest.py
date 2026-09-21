@@ -11,6 +11,9 @@ import pytest
 def session(tmp_path, monkeypatch):
     monkeypatch.setenv("CAREXPERT_DATABASE_URL", f"sqlite:///{tmp_path / 'test.db'}")
     monkeypatch.setenv("CAREXPERT_CACHE_DIR", str(tmp_path / "cache"))
+    # Un test n'ecrit jamais hors de son dossier: sans cela, les pages
+    # conservees pour diagnostic atterrissaient dans le data/ du depot.
+    monkeypatch.setenv("CAREXPERT_DIAGNOSTIC_DIR", str(tmp_path / "diagnostic"))
 
     from carexpert import config, db
 

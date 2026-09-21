@@ -12,10 +12,12 @@ telling the page that expected it.
 
 from __future__ import annotations
 
+import io
 import json
 import re
 import socket
 import zipfile
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -440,6 +442,64 @@ def test_a_broken_deep_reading_does_not_leave_a_raw_error(client, search_html, m
     assert payload["ok"] is False
     assert "Expertise impossible" in payload["message"]
     config.get_settings.cache_clear()
+
+
+# --- Les pages qu'aucun lecteur ne sait exploiter -------------------------
+
+
+def test_an_unreadable_page_is_kept_so_the_site_can_be_supported(client):
+    """Un site non pris en charge ne se corrige pas sur une supposition.
+
+    Demander la page a l'utilisateur en "enregistrer sous" le met aux prises
+    avec son navigateur, qui filtre et parfois supprime ce qu'il telecharge.
+    Le serveur, lui, a deja la page en main.
+    """
+    html = "<html><body>Nos annonces arrivent en JavaScript</body></html>"
+    url = "https://www.leboncoin.fr/recherche?category=2&text=twingo"
+    client.post("/api/extension/page", json={"url": url, "html": html})
+
+    state = client.get("/api/extension/status").json()["diagnostic"]
+    assert state["count"] == 1
+    assert "leboncoin" in state["names"][0]
+
+    kept = (Path(state["folder"]) / state["names"][0]).read_text()
+    assert url in kept, "l'adresse compte autant que le contenu pour rejouer le cas"
+    assert "JavaScript" in kept
+
+
+def test_a_page_read_correctly_is_not_kept(client, search_html):
+    client.post("/api/extension/page", json={"url": SEARCH_URL, "html": search_html})
+    assert client.get("/api/extension/status").json()["diagnostic"]["count"] == 0
+
+
+def test_only_the_last_pages_are_kept(client):
+    """Le dossier ne doit pas grossir sans qu'on s'en apercoive."""
+    for index in range(ext.DIAGNOSTIC_KEPT + 4):
+        client.post("/api/extension/page", json={
+            "url": f"https://www.leboncoin.fr/recherche?page={index}",
+            "html": f"<html><body>page {index}</body></html>",
+        })
+    assert client.get("/api/extension/status").json()["diagnostic"]["count"] \
+        == ext.DIAGNOSTIC_KEPT
+
+
+def test_the_kept_pages_can_be_downloaded_and_deleted(client):
+    client.post("/api/extension/page", json={
+        "url": "https://www.leboncoin.fr/recherche?category=2",
+        "html": "<html><body>illisible</body></html>",
+    })
+
+    archive = client.get("/extension/diagnostic.zip")
+    assert archive.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(archive.content)) as content:
+        assert len(content.namelist()) == 1
+        assert b"illisible" in content.read(content.namelist()[0])
+
+    page = client.get("/extension")
+    assert "n'a pas su lire" in page.text
+    assert client.post("/extension/diagnostic/supprimer", follow_redirects=False).status_code == 303
+    assert client.get("/api/extension/status").json()["diagnostic"]["count"] == 0
+    assert client.get("/extension/diagnostic.zip").status_code == 404
 
 
 # --- Un serveur local est ouvert a tout le navigateur ---------------------

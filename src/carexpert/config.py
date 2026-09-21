@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{DATA_DIR / 'carexpert.db'}"
     cache_dir: Path = CACHE_DIR
     cache_ttl_hours: int = 12
+    #: Les pages qu'aucun lecteur n'a su exploiter y sont conservees, pour
+    #: qu'un site non pris en charge puisse etre diagnostique sur la vraie
+    #: page plutot que sur une supposition.
+    diagnostic_dir: Path = DATA_DIR / "diagnostic"
 
     # --- Claude ------------------------------------------------------------
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")

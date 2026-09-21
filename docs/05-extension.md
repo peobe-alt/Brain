@@ -99,6 +99,24 @@ d'autre : la page du vendeur reste intacte, aucune erreur JavaScript. Si le
 serveur tombe en panne, le message reste une phrase lisible - l'ecran de
 l'utilisateur a ce moment-la, c'est le site du vendeur, pas un terminal.
 
+## Un site qui n'est pas encore lisible
+
+AutoScout24 publie ses annonces en `schema.org`; d'autres non, et leurs
+donnees vivent dans un bloc JavaScript que CarExpert ne lit pas. Sur ces
+sites, l'extension le dit au lieu de laisser croire a une panne.
+
+La page en question est alors **conservee sur le disque**, dans
+`data/diagnostic/`, et la page Extension du tableau de bord affiche le
+dossier, un bouton pour tout telecharger et un bouton pour tout supprimer.
+Un site non pris en charge ne se corrige pas sur une supposition: il faut la
+vraie page, et la demander a l'utilisateur en "enregistrer sous" le met aux
+prises avec son navigateur, qui filtre et parfois supprime ce qu'il
+telecharge. Le serveur, lui, l'a deja en main.
+
+Ces pages contiennent ce que l'utilisateur voyait, nom de compte compris
+s'il etait connecte: la page le dit, et les dix dernieres seulement sont
+gardees.
+
 ## Installation
 
 Le tableau de bord la sert : onglet **Extension**, bouton *Telecharger*, ou

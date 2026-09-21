@@ -293,6 +293,12 @@ button.ghost:hover { border-color: var(--avoid); background: transparent; color:
   background: var(--surface-2); border: 1px solid var(--border);
   border-radius: var(--radius);
 }
+.extdiag {
+  margin: 0 0 22px; padding: 14px 16px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--check); border-radius: var(--radius);
+}
+.extdiag form { display: inline; margin: 0; }
 .extsteps { margin: 0; padding-left: 22px; max-width: 74ch; }
 .extstep { margin-bottom: 16px; }
 .extpath {

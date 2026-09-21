@@ -217,6 +217,7 @@ def status() -> dict[str, Any]:
         "deep": bool(settings.anthropic_api_key),
         "sites": sorted(name for name in load_site_configs()),
         "activity": activity.as_dict(),
+        "diagnostic": diagnostic_state(),
     }
 
 
@@ -248,6 +249,8 @@ def analyse_page(capture: PageCapture) -> dict[str, Any]:
             ),
         ) from exc
     activity.note(capture.url, len(outcome.results), page_bytes)
+    if not outcome.results and page.source:
+        keep_for_diagnosis(capture.url, capture.html, page.source)
     return outcome.as_dict()
 
 
@@ -302,6 +305,86 @@ def _find(session, request: DeepRequest) -> Listing | None:
 
 
 # --- Installer l'extension ------------------------------------------------
+
+
+#: Assez pour diagnostiquer un site, pas assez pour que le dossier grossisse
+#: sans qu'on s'en apercoive.
+DIAGNOSTIC_KEPT = 10
+
+
+def diagnostic_dir() -> Path:
+    return Path(get_settings().diagnostic_dir)
+
+
+def keep_for_diagnosis(url: str, html: str, source: str) -> Path | None:
+    """Write down a page no reader could exploit.
+
+    Un site non pris en charge ne se corrige pas sur une supposition: il faut
+    la vraie page. La demander a l'utilisateur en "enregistrer sous" le met
+    aux prises avec son navigateur, qui filtre et parfois supprime ce qu'il
+    telecharge. Le serveur, lui, a deja la page en main.
+    """
+    folder = diagnostic_dir()
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        host = (urlparse(url).netloc or source or "page").replace(":", "-")
+        stamp = datetime.now().strftime("%Y-%m-%d-%Hh%M-%S")
+        # Trois onglets ouverts d'un clic, c'est trois pages dans la meme
+        # seconde: sans numero de secours, elles s'ecrasent l'une l'autre.
+        target = folder / f"{stamp}-{host}.html"
+        rang = 2
+        while target.exists():
+            target = folder / f"{stamp}-{host}-{rang}.html"
+            rang += 1
+        # L'adresse d'origine compte autant que le contenu pour rejouer le cas.
+        target.write_text(f"<!-- page capturee: {url} -->\n{html}", encoding="utf-8")
+        _forget_oldest(folder)
+        return target
+    except OSError as exc:  # disque plein, dossier en lecture seule
+        log.warning("diagnostic: impossible d'ecrire la page (%s)", exc)
+        return None
+
+
+def _forget_oldest(folder: Path) -> None:
+    pages = sorted(folder.glob("*.html"), key=lambda item: item.stat().st_mtime)
+    for stale in pages[:-DIAGNOSTIC_KEPT]:
+        stale.unlink(missing_ok=True)
+
+
+def diagnostic_state() -> dict[str, Any]:
+    folder = diagnostic_dir()
+    pages = sorted(folder.glob("*.html")) if folder.is_dir() else []
+    return {
+        "count": len(pages),
+        "folder": str(folder),
+        "names": [page.name for page in pages[-DIAGNOSTIC_KEPT:]],
+    }
+
+
+@router.get("/extension/diagnostic.zip")
+def download_diagnostic() -> Response:
+    folder = diagnostic_dir()
+    pages = sorted(folder.glob("*.html")) if folder.is_dir() else []
+    if not pages:
+        raise HTTPException(status_code=404, detail="aucune page conservee")
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for page in pages:
+            archive.write(page, page.name)
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="carexpert-diagnostic.zip"'},
+    )
+
+
+@router.post("/extension/diagnostic/supprimer")
+def clear_diagnostic() -> Response:
+    folder = diagnostic_dir()
+    if folder.is_dir():
+        for page in folder.glob("*.html"):
+            page.unlink(missing_ok=True)
+    return Response(status_code=303, headers={"Location": "/extension"})
 
 
 def build_archive() -> bytes:

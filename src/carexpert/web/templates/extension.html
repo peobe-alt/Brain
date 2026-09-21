@@ -38,6 +38,30 @@
     </span>
   </div>
 
+  {% if diagnostic.count %}
+  <div class="extdiag">
+    <b>{{ diagnostic.count }} page{{ 's' if diagnostic.count > 1 }} que CarExpert
+      n'a pas su lire {{ 'ont' if diagnostic.count > 1 else 'a' }} ete conservee{{ 's' if diagnostic.count > 1 }}.</b>
+    <p class="help small">
+      Un site qui n'est pas encore pris en charge ne se corrige pas sur une
+      supposition : il faut la vraie page. Elles sont ici, sur votre disque,
+      et n'ont ete envoyees nulle part :
+    </p>
+    <code class="extpath">{{ diagnostic.folder }}</code>
+    <p class="help small">
+      Elles contiennent la page telle que vous la voyiez, y compris votre nom
+      de compte si vous etiez connecte au site. Regardez-les avant de les
+      transmettre, et supprimez-les quand elles ne servent plus.
+    </p>
+    <div class="actions">
+      <a class="button" href="/extension/diagnostic.zip">Telecharger (.zip)</a>
+      <form method="post" action="/extension/diagnostic/supprimer">
+        <button type="submit" class="button">Supprimer ces pages</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
   <ol class="extsteps">
     <li class="extstep">
       <b>Recuperez le dossier de l'extension.</b>
