@@ -254,9 +254,12 @@
 }
 
 .carexpert-hud-text {
-  white-space: nowrap !important;
+  /* Sur deux lignes plutot que coupe: c'est quand le message est long que
+     l'utilisateur en a besoin, et l'ellipse mangeait justement la raison. */
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
   overflow: hidden !important;
-  text-overflow: ellipsis !important;
 }
 
 @media (max-width: 720px) {

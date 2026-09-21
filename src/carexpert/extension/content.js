@@ -343,7 +343,9 @@
 
     var box = node("div", "carexpert-root carexpert-hud");
     box.appendChild(node("span", "carexpert-dot", ""));
-    box.appendChild(node("span", "carexpert-hud-text", info.message || ""));
+    var texte = node("span", "carexpert-hud-text", info.message || "");
+    texte.title = info.message || "";
+    box.appendChild(texte);
 
     var toOpen = info.open || [];
     if (toOpen.length) box.appendChild(openButton(toOpen));
