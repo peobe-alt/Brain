@@ -1,9 +1,18 @@
 #!/bin/bash
 # Double-cliquez sur ce fichier pour ouvrir CarExpert. (macOS et Linux)
 #
-# La premiere fois, macOS peut refuser de l'executer. Dans ce cas: clic droit
-# sur le fichier, "Ouvrir", puis "Ouvrir" a nouveau dans la fenetre qui
-# s'affiche. Une seule fois, ensuite le double-clic suffit.
+# Sur Mac, macOS bloque tout fichier telecharge depuis internet, quel que
+# soit son contenu, et sur les versions recentes le "clic droit > Ouvrir" ne
+# suffit plus. Le chemin qui marche partout, une fois pour toutes:
+#
+#   1. ouvrez Terminal (Spotlight, tapez "Terminal");
+#   2. tapez  bash  suivi d'un espace;
+#   3. glissez ce fichier dans la fenetre Terminal;
+#   4. Entree.
+#
+# Pour que le double-clic marche ensuite: Reglages Systeme > Confidentialite
+# et securite > descendez jusqu'au message qui parle de CarExpert.command >
+# "Ouvrir quand meme".
 
 cd "$(dirname "$0")/.." || exit 1
 

@@ -14,9 +14,24 @@ La toute premiere fois, l'installation prend environ une minute. Tout est
 installe dans un dossier .venv a cote du programme: rien n'est touche
 ailleurs sur votre ordinateur, et tout supprimer revient a jeter ce dossier.
 
-Sur Mac, la premiere fois, un message peut dire que le fichier vient d'un
-developpeur non identifie: clic droit sur CarExpert.command, "Ouvrir", puis
-"Ouvrir" a nouveau. Une seule fois.
+SUR MAC, LA PREMIERE FOIS
+
+macOS bloque les fichiers telecharges depuis internet, quel qu'en soit le
+contenu. Le message dit "Apple n'a pas pu confirmer que CarExpert.command ne
+contenait pas de logiciel malveillant" et ne propose que la corbeille.
+Cliquez "Termine", ne jetez rien, et passez par le Terminal:
+
+  1. ouvrez Terminal (Spotlight, tapez "Terminal");
+  2. tapez  bash  suivi d'un espace;
+  3. glissez CarExpert.command dans la fenetre Terminal;
+  4. Entree.
+
+C'est tout, et ca marche sur toutes les versions de macOS.
+
+Pour que le double-clic fonctionne les fois suivantes: juste apres le
+message de blocage, allez dans Reglages Systeme > Confidentialite et
+securite, descendez jusqu'a la ligne qui parle de CarExpert.command, et
+cliquez "Ouvrir quand meme".
 
 
 COMMENT S'EN SERVIR
