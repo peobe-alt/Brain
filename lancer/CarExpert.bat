@@ -13,11 +13,24 @@ if errorlevel 1 (
   exit /b 1
 )
 
-python -c "import carexpert" >nul 2>nul
-if errorlevel 1 (
+REM Tout s'installe dans un dossier .venv a cote du programme, jamais dans le
+REM Python du systeme: rien a desinstaller, et aucun conflit avec le reste.
+if not exist ".venv\Scripts\python.exe" (
   echo   Premiere ouverture: installation en cours, comptez une minute...
-  python -m pip install --quiet --upgrade pip
-  python -m pip install --quiet -e ".[photos]"
+  python -m venv .venv
+  if errorlevel 1 (
+    echo.
+    echo   La creation de l'environnement a echoue.
+    pause
+    exit /b 1
+  )
+)
+
+".venv\Scripts\python.exe" -c "import carexpert" >nul 2>nul
+if errorlevel 1 (
+  echo   Installation des composants, comptez une minute...
+  ".venv\Scripts\python.exe" -m pip install --quiet --upgrade pip
+  ".venv\Scripts\python.exe" -m pip install --quiet -e ".[photos]"
   if errorlevel 1 (
     echo.
     echo   L'installation a echoue. Envoyez le message ci-dessus pour diagnostic.
@@ -26,5 +39,5 @@ if errorlevel 1 (
   )
 )
 
-python -m carexpert.cli serve
+".venv\Scripts\python.exe" -m carexpert.cli serve
 pause

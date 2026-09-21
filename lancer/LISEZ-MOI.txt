@@ -10,7 +10,13 @@ Une fenetre noire s'ouvre, puis votre navigateur affiche CarExpert.
 Laissez la fenetre noire ouverte tant que vous utilisez l'outil.
 Pour arreter, fermez-la.
 
-La toute premiere fois, l'installation prend environ une minute.
+La toute premiere fois, l'installation prend environ une minute. Tout est
+installe dans un dossier .venv a cote du programme: rien n'est touche
+ailleurs sur votre ordinateur, et tout supprimer revient a jeter ce dossier.
+
+Sur Mac, la premiere fois, un message peut dire que le fichier vient d'un
+developpeur non identifie: clic droit sur CarExpert.command, "Ouvrir", puis
+"Ouvrir" a nouveau. Une seule fois.
 
 
 COMMENT S'EN SERVIR
